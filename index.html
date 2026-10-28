@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'; font-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>L.I.M.B.O. // SİSTEM_ANOMALİSİ</title>
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+  <div id="app">
+    <header id="appbar">
+      <div class="appbar-left">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span class="brand-name">L.I.M.B.O.</span>
+        <span class="brand-sub">// SİSTEM_ANOMALİSİ</span>
+      </div>
+      <div class="appbar-center">
+        <span class="status-led" id="statusLed"></span>
+        <span id="appbarStatus">ÖN YÜKLEME</span>
+        <span class="appbar-sep">/</span>
+        <span id="appbarPid">PID 0x0009</span>
+      </div>
+      <div class="appbar-controls">
+        <button id="btnMin" title="Simge durumu" aria-label="Simge durumu">_</button>
+        <button id="btnMax" title="Büyüt" aria-label="Büyüt">□</button>
+        <button id="btnClose" class="danger" title="Kapat" aria-label="Kapat">×</button>
+      </div>
+    </header>
+
+    <main id="screen-wrap">
+      <div id="stage">
+        <div id="render-layer">
+          <canvas id="view" width="480" height="270" aria-label="Oyun ekranı"></canvas>
+          <canvas id="viewmodel" width="480" height="270" aria-hidden="true"></canvas>
+        </div>
+        <div id="color-grade"></div>
+        <canvas id="noise" width="192" height="108" aria-hidden="true"></canvas>
+        <div id="scanlines"></div>
+        <div id="vignette"></div>
+        <div id="damage-flash"></div>
+        <div id="freeze-flash"></div>
+        <div id="glitch-layer" aria-hidden="true"></div>
+
+        <div id="hud" class="hidden">
+          <div class="hud-left">
+            <div class="hud-block integrity-block">
+              <div class="hud-label"><span>SİSTEM BÜTÜNLÜĞÜ</span><span class="hud-mini">SYS.INTEGRITY</span></div>
+              <div class="integrity-line">
+                <span id="hpValue">100</span><span class="hp-pct">%</span>
+                <div id="hpBar" class="hp-bar"></div>
+              </div>
+            </div>
+            <div class="hud-block dash-block">
+              <div class="hud-label"><span>ATILMA</span><span class="hud-mini">DASH</span></div>
+              <div class="dash-line"><div id="dashPips"></div><span id="dashState">HAZIR</span></div>
+            </div>
+          </div>
+
+          <div class="hud-top">
+            <div id="chapterLabel" class="chapter-label">BÖLÜM 01 // GİRİŞ_KAPISI</div>
+            <div class="objective-line"><span class="obj-arrow">▸</span><span id="objectiveLabel">KATMANI TEMİZLE</span></div>
+            <div id="popupAlert" class="popup-alert hidden"><span class="pa-icon">!</span><span id="popupAlertText">HARİCİ PENCERE</span><span class="pa-key">[F]</span></div>
+            <div id="bossBar" class="boss-bar hidden">
+              <div class="bb-top"><span id="bossName">GÖLGE_YÖNETİCİ</span><span id="bossPhase">FAZ 1</span></div>
+              <div class="bb-track"><i id="bossFill"></i></div>
+            </div>
+          </div>
+
+          <div class="hud-right">
+            <div class="hud-block weapon-block">
+              <div class="hud-label"><span>SİLAH</span><span class="hud-mini" id="weaponSlot">01</span></div>
+              <div id="weaponName" class="weapon-name">VERİ BIÇAĞI</div>
+              <div class="heat-line"><span class="hud-mini">ISINMA</span><div class="heat-bar"><div id="heatFill"></div></div></div>
+              <div class="weapon-keys"><span data-w="1">1 BIÇAK</span><span data-w="2">2 TÜFEK</span><span data-w="3">3 ÇEKİRDEK</span></div>
+            </div>
+            <div class="hud-block style-block">
+              <div class="hud-label"><span>VERİ AKIŞI</span><span class="hud-mini">STYLE</span></div>
+              <div class="style-line"><span id="styleRank">D</span><span id="styleValue" class="style-value">000</span><span id="comboLabel" class="combo-label">x1</span></div>
+            </div>
+          </div>
+
+          <div id="interactPrompt" class="interact hidden"><span class="keycap">E</span><span id="interactText">ETKİLEŞİM</span></div>
+
+          <div id="qtePanel" class="qte hidden">
+            <div class="qte-head"><span>BELLEK SIZINTISI</span><span class="qte-timer" id="qteTimer">4.0</span></div>
+            <div class="qte-keys" id="qteKeys"></div>
+            <div class="qte-note">SİSTEMİ DENGELE</div>
+          </div>
+
+          <div id="subtitle" class="subtitle hidden"><span class="sub-speaker" id="subSpeaker">// SİSTEM</span><span id="subText"></span></div>
+          <div id="messageFeed" class="message-feed"></div>
+          <div id="objectiveToast" class="objective-toast hidden"></div>
+
+          <div id="crosshair" class="crosshair" aria-hidden="true">
+            <span class="ch-dot"></span><i class="ch-l"></i><i class="ch-r"></i><i class="ch-t"></i><i class="ch-b"></i>
+          </div>
+          <div id="hitmarker" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <div id="reticleRing" aria-hidden="true"></div>
+
+          <div class="hud-footer">
+            <span>WASD HAREKET</span><span>SHIFT ATILMA</span><span>C EĞİL</span><span>T FARE MODU</span><span>V KAMERA</span><span>TAB HARİTA</span><span>E ETKİLEŞİM</span><span>F3 HITBOX</span><span>ESC DURAKLAT</span>
+          </div>
+          <div id="cursorModeBanner" class="cursor-mode-banner hidden">FARE MODU // PENCERELER AKTİF <b>T</b> İLE NİŞAN AL</div>
+          <div id="cameraBadge" class="camera-badge hidden">3. ŞAHIS</div>
+          <div id="hitboxBadge" class="hitbox-badge hidden">F3 // HITBOX AÇIK</div>
+        </div>
+
+        <!-- GPU ARTIFACTS / WALLPAPER BLEED / SYSTEM CRASH LAYERS -->
+        <div id="gpu-artifacts" aria-hidden="true"></div>
+        <div id="wallpaper-bleed" aria-hidden="true">
+          <div class="wb-noise"></div>
+          <div class="wb-message">WALLPAPER_0x0009 // SENİN ARKA PLANIN ARTIK BİZİM</div>
+        </div>
+
+        <!-- BACKROOMS SCHEMATIC MAP -->
+        <section id="mapOverlay" class="map-overlay hidden" aria-label="Katman şeması">
+          <div class="map-frame">
+            <div class="map-head">
+              <div><span class="map-kicker">BACKROOMS://SCHEMATIC</span><h2 id="mapTitle">KATMAN ŞEMASI</h2></div>
+              <div class="map-meta"><span id="mapZoom">ZOOM 1.00x</span><span id="mapDanger">TEHDİT 0</span></div>
+            </div>
+            <div class="map-canvas-wrap">
+              <canvas id="mapCanvas" width="960" height="540"></canvas>
+              <div class="map-scan"></div>
+            </div>
+            <div class="map-foot"><span>TAB / ESC KAPAT</span><span>TEKERLEK veya +/- YAKINLAŞTIR</span><span>OK TUŞLARI KAYDIR</span><span id="mapExplore">KEŞİF %0</span></div>
+          </div>
+        </section>
+
+        <!-- SCRIPTED CURSOR TAKEOVER -->
+        <div id="takeover" class="takeover hidden" aria-hidden="true">
+          <div class="tc-noise"></div>
+          <div class="tc-banner"><span>KONTROL SİSTEME DEVREDİLDİ</span><span id="takeoverTag">AUTO_EXEC</span></div>
+          <div class="tc-fakewin" id="takeoverWindow">
+            <div class="tc-title"><span>LIMBO_OS // OTOMATİK GİRDİ</span><span class="tc-x">×</span></div>
+            <div class="tc-body"><div class="tc-lines" id="takeoverLog"></div><div class="tc-input"><span class="prompt">&gt;</span><span id="takeoverText"></span><span class="tc-caret">█</span></div></div>
+          </div>
+          <div class="tc-cursor" id="takeoverCursor"><i></i></div>
+          <div class="tc-click" id="takeoverClick"></div>
+          <div class="tc-hint" id="takeoverHint">GİRDİLERİNİZ YENİDEN YAZILIYOR // T İLE KES</div>
+        </div>
+
+        <!-- KERNEL PANIC / ELECTRON CRASH -->
+        <section id="kernelPanic" class="system-overlay hidden" aria-live="assertive">
+          <div class="kp-screen">
+            <pre class="kp-log" id="kernelLog"></pre>
+            <div class="kp-crash-dialog">
+              <div class="kcd-title"><span>electron.exe</span><span class="kcd-x">×</span></div>
+              <div class="kcd-body">
+                <div class="kcd-icon">!</div>
+                <div><div class="kcd-head" id="crashHead">ELECTRON ÇALIŞMAYI DURDURDU</div><div class="kcd-sub" id="crashSub">Uygulama beklenmeyen bir sistem hatasıyla karşılaştı. Hata kodu: 0x0000009</div></div>
+              </div>
+              <div class="kcd-buttons"><button type="button">HATA AYRINTILARI</button><button type="button">KAPAT</button></div>
+            </div>
+            <div class="kp-foot"><span>KERNEL PANIC // NOT SYNCING</span><span>REBOOT IN 0x0009</span></div>
+          </div>
+        </section>
+
+        <!-- BOOT -->
+        <section id="boot" class="overlay boot">
+          <div class="boot-shell">
+            <div class="boot-log" id="bootLog"></div>
+            <div class="boot-main">
+              <div class="boot-kicker">LIMBO CONTAINMENT PROTOCOL // 1987</div>
+              <h1 class="boot-title" data-text="L.I.M.B.O.">L.I.M.B.O.</h1>
+              <div class="boot-sub">SİSTEM_ANOMALİSİ</div>
+              <div class="boot-status" id="bootStatus">BEKLENİYOR...</div>
+              <button id="btnStart" class="big-btn">OTURUMU BAŞLAT</button>
+              <div class="boot-foot"><span>15 KATMAN</span><span>1 ÇIKIŞ YOK</span><span>v1.0.0 / KÖK_ERİŞİM</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TERMINATED -->
+        <section id="terminated" class="overlay terminated hidden">
+          <div class="terminated-inner">
+            <pre class="terminated-art">    ██╗     ██╗███╗   ███╗██████╗  ██████╗
+    ██║     ██║████╗ ████║██╔══██╗██╔═══██╗
+    ██║     ██║██╔████╔██║██████╔╝██║   ██║
+    ██║     ██║██║╚██╔╝██║██╔══██╗██║   ██║
+    ███████╗██║██║ ╚═╝ ██║██████╔╝╚██████╔╝
+    ╚══════╝╚═╝╚═╝     ╚═╝╚═════╝  ╚═════╝</pre>
+            <div class="term-dead">SİSTEM KALICI OLARAK KAPATILDI.</div>
+            <div class="term-sub">SİLİNEN DOSYA GERİ GETİRİLEMEZ.<br>OTURUM VERİSİ BULUNAMADI.</div>
+            <div class="term-code">ERR://0x00000000</div>
+            <div id="tokenHint" class="term-token">KURTARMA ANAHTARI ARANIYOR...<br><span>SIFIRLA.TXT</span> // KONUM ARANIYOR</div>
+            <div class="term-actions">
+              <button id="btnOpenResetHelper" class="ghost-btn">SIFIRLA.TXT KONUMUNU AÇ</button>
+              <button id="btnNewIdentity" class="ghost-btn hidden">YENİ BİR KİMLİK OLUŞTUR</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- MAIN MENU -->
+        <section id="menu" class="overlay menu hidden">
+          <div class="menu-grid">
+            <div class="menu-main">
+              <div class="menu-eyebrow"><span class="led-dot"></span> LIMBO CONTAINMENT PROTOCOL <span class="dim">/ 1987</span></div>
+              <h1 class="game-title" data-text="L.I.M.B.O.">L.I.M.B.O.</h1>
+              <div class="game-subtitle">SİSTEM_ANOMALİSİ</div>
+              <div class="title-rule"></div>
+              <nav class="menu-nav">
+                <button class="menu-item" data-menu="continue"><span class="mi-index">01</span><span class="mi-label" id="menuContinueLabel">OTURUMU SÜRDÜR</span><span class="mi-hint">DEVAM</span></button>
+                <button class="menu-item" data-menu="chapters"><span class="mi-index">02</span><span class="mi-label">BÖLÜM ARŞİVİ</span><span class="mi-hint">15 KATMAN</span></button>
+                <button class="menu-item" data-menu="settings"><span class="mi-index">03</span><span class="mi-label">SİSTEM AYARLARI</span><span class="mi-hint">CONFIG</span></button>
+                <button class="menu-item" data-menu="quit"><span class="mi-index">04</span><span class="mi-label">SİSTEMİ KAPAT</span><span class="mi-hint">EXIT</span></button>
+              </nav>
+              <div class="menu-meta">
+                <span id="menuProgress">KAYIT YOK // 00/15</span>
+                <span class="menu-warning">HARİCİ PENCERELER AKTİF</span>
+              </div>
+            </div>
+            <aside class="menu-side">
+              <div class="side-frame">
+                <div class="side-head"><span>SISTEM DURUMU</span><span class="blink">●</span></div>
+                <div class="side-rows">
+                  <div class="srow"><span>ÇEKİRDEK</span><span class="bad">KARARSIZ</span></div>
+                  <div class="srow"><span>BELLEK</span><span class="warn">SIZINTI</span></div>
+                  <div class="srow"><span>KATMAN</span><span id="sideLayer">-- / 15</span></div>
+                  <div class="srow"><span>OPERATÖR</span><span id="sideUser">$USER</span></div>
+                  <div class="srow"><span>SİSTEM SAATİ</span><span id="sideClock">--:--:--</span></div>
+                  <div class="srow"><span>TEHDİT</span><span id="sideHazard">--</span></div>
+                  <div class="srow"><span>ÇIKIŞ</span><span class="bad">YOK</span></div>
+                </div>
+                <div class="side-log" id="menuSideLog">
+                  <div>&gt; limbo.exe --recover</div>
+                  <div class="dim">&gt; checking sectors..................</div>
+                  <div class="dim">&gt; anomaly signature: FOUND</div>
+                  <div class="warn">&gt; operator presence: UNKNOWN</div>
+                  <div class="dim">&gt; waiting for input_</div>
+                </div>
+                <div class="side-foot">BU OTURUM SENİNLE SON BULACAK.</div>
+              </div>
+              <div class="side-quote">“AŞAĞIDA IŞIK YOK.<br>SADECE SENİN İÇİN AÇIK BIRAKILMIŞ BİR KAPI VAR.”</div>
+            </aside>
+          </div>
+          <div class="menu-foot"><span>WASD / MOUSE / SHIFT / C / T / V / TAB / E / F / F3</span><span>KULAKLIK ÖNERİLİR</span><span id="osBadge">LINUX // ELECTRON</span></div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section id="settings" class="overlay panel-overlay hidden">
+          <div class="panel">
+            <div class="panel-head"><span class="panel-kicker">CONFIG.SYS</span><h2>SİSTEM AYARLARI</h2><button class="panel-close" data-close="settings">×</button></div>
+            <div class="settings-grid">
+              <label class="setting"><span>FARE HASSASİYETİ</span><span class="setting-value" id="sensValue">1.00</span><input id="sensRange" type="range" min="0.25" max="2.5" step="0.05" value="1"></label>
+              <label class="setting"><span>ANA SES</span><span class="setting-value" id="volValue">70</span><input id="volRange" type="range" min="0" max="100" step="1" value="70"></label>
+              <label class="setting"><span>HARİCİ PENCERE YOĞUNLUĞU</span><span class="setting-value" id="popValue">NORMAL</span><input id="popRange" type="range" min="0" max="2" step="1" value="2"></label>
+              <label class="setting"><span>CRT / TARAMA ÇİZGİLERİ</span><span class="setting-value"><input id="crtToggle" type="checkbox" checked> AÇIK</span></label>
+              <label class="setting"><span>EKRAN SARSINTISI</span><span class="setting-value"><input id="shakeToggle" type="checkbox" checked> AÇIK</span></label>
+              <label class="setting"><span>MASAÜSTÜ / BELGELER SIZINTISI</span><span class="setting-value"><input id="spillToggle" type="checkbox"> AÇIK</span></label>
+              <label class="setting"><span>DUVAR KAĞIDI GLITCH</span><span class="setting-value"><input id="wallpaperToggle" type="checkbox"> AÇIK</span></label>
+              <label class="setting"><span>SİNEMATİK ELE GEÇİRME</span><span class="setting-value"><input id="takeoverToggle" type="checkbox"> AÇIK</span></label>
+              <label class="setting"><span>TAM EKRAN</span><span class="setting-value"><input id="fsToggle" type="checkbox"> KAPALI</span></label>
+            </div>
+            <div class="panel-note">Harici pencereler oyunun gerçek işletim sistemi pencereleridir. Dosya bulmacaları yalnızca <span class="mono">LIMBO_SANDBOX</span> klasöründe çalışır. Masaüstü sızıntısı yalnızca <span class="mono">.limbo_*.txt/bin</span> dosyaları bırakır, en fazla 6 tanedir ve kurtarma anahtarıyla temizlenir.</div>
+            <div class="panel-actions">
+              <button id="btnResetProgress" class="danger-btn">KAYITLARI SIFIRLA</button>
+              <button class="primary-btn" data-close="settings">KAYDET VE DÖN</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- CHAPTER ARCHIVE -->
+        <section id="chapters" class="overlay panel-overlay hidden">
+          <div class="panel wide">
+            <div class="panel-head"><span class="panel-kicker">ARCHIVE://ROOT</span><h2>BÖLÜM ARŞİVİ</h2><button class="panel-close" data-close="chapters">×</button></div>
+            <div class="chapter-grid" id="chapterGrid"></div>
+            <div class="panel-note">Arşiv kayıtları bozulmuş olabilir. Her katman aynı çıkışa açılmaz.</div>
+            <div class="panel-actions"><button class="ghost-btn" data-close="chapters">GERİ</button></div>
+          </div>
+        </section>
+
+        <!-- PAUSE -->
+        <section id="pause" class="overlay panel-overlay hidden">
+          <div class="panel pause-panel">
+            <div class="panel-head"><span class="panel-kicker">SESSION SUSPENDED</span><h2>DURAKLATILDI</h2></div>
+            <div class="pause-list">
+              <button class="pause-item" data-pause="resume">DEVAM ET <span>ESC</span></button>
+              <button class="pause-item" data-pause="restart">KATMANI YENİDEN BAŞLAT <span>R</span></button>
+              <button class="pause-item" data-pause="chapters">BÖLÜM ARŞİVİ <span>03</span></button>
+              <button class="pause-item" data-pause="settings">SİSTEM AYARLARI <span>04</span></button>
+              <button class="pause-item" data-pause="menu">ANA MENÜ <span>05</span></button>
+            </div>
+            <div class="panel-note">Süre durduruldu. Harici pencereler açık kalabilir.</div>
+          </div>
+        </section>
+
+        <!-- CHAPTER INTRO -->
+        <section id="chapterIntro" class="overlay chapter-intro hidden">
+          <div class="ci-inner">
+            <div class="ci-top"><span id="ciAct">PERDE I // DIŞ ÇEPER</span><span class="ci-code" id="ciCode">0x01</span></div>
+            <div class="ci-number" id="ciNumber">01</div>
+            <div class="ci-title-wrap"><h2 id="ciTitle">[GİRİŞ_KAPISI]</h2><div class="ci-name" id="ciName">GİRİŞ KAPISI</div></div>
+            <p class="ci-lore" id="ciLore"></p>
+            <div class="ci-objective"><span>GÖREV</span><strong id="ciObjective"></strong></div>
+            <button id="btnEnter" class="big-btn">KATMANA İN <span>[ENTER]</span></button>
+            <div class="ci-foot"><span id="ciThreat">TEHDİT: DÜŞÜK</span><span>// SİNYAL: ZAYIF</span></div>
+          </div>
+        </section>
+
+        <!-- LEVEL COMPLETE -->
+        <section id="levelComplete" class="overlay level-complete hidden">
+          <div class="complete-inner">
+            <div class="complete-kicker" id="completeKicker">KATMAN TEMİZLENDİ</div>
+            <h2 id="completeTitle">[VERİ_KORİDORU]</h2>
+            <div class="complete-stats" id="completeStats"></div>
+            <div class="complete-quote" id="completeQuote"></div>
+            <button id="btnNextLevel" class="big-btn">SONRAKİ KATMAN <span>[ENTER]</span></button>
+          </div>
+        </section>
+
+        <!-- DEATH -->
+        <section id="death" class="overlay death hidden">
+          <div class="death-inner">
+            <div class="death-glitch" aria-hidden="true">SİSTEM BÜTÜNLÜĞÜ KAYBEDİLDİ</div>
+            <h2>SİSTEM BÜTÜNLÜĞÜ KAYBEDİLDİ</h2>
+            <pre class="death-log" id="deathLog"></pre>
+            <div class="death-stats" id="deathStats"></div>
+            <div class="death-actions">
+              <button id="btnRespawn" class="big-btn">YENİDEN BAŞLAT <span>[ENTER]</span></button>
+              <button id="btnDeathMenu" class="ghost-btn">ANA MENÜ</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- KEYPAD -->
+        <section id="keypad" class="overlay keypad-overlay hidden">
+          <div class="keypad-window">
+            <div class="kp-titlebar"><span>SECURITY_GATE.EXE</span><button id="keypadClose" aria-label="Kapat">×</button></div>
+            <div class="kp-body">
+              <div class="kp-head"><span>SEKTÖR KİLİDİ</span><span class="kp-led"></span></div>
+              <div class="kp-display" id="keypadDisplay">_ _ _ _</div>
+              <div class="kp-hint">KODU YAN TERMİNAL PENCERESİNDEN OKU.</div>
+              <div class="kp-grid">
+                <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+                <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+                <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+                <button data-k="C" class="alt">C</button><button data-k="0">0</button><button data-k="E" class="alt">↵</button>
+              </div>
+              <div class="kp-foot"><span id="keypadError"></span><span>ESC İPTAL</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- FINALE / FILE PROTOCOL -->
+        <section id="finale" class="overlay panel-overlay hidden">
+          <div class="panel finale-panel">
+            <div class="panel-head"><span class="panel-kicker">ROOT_ACCESS://0x000</span><h2>KÖK DOSYASI</h2><button class="panel-close" data-close="finale">×</button></div>
+            <div class="finale-copy" id="finaleCopy">
+              Son katman çöktü. Çekirdeğe bağlı tek bir dosya kaldı. Onu yok etmek için kendi dosya gezginini kullanmalısın.
+            </div>
+            <div class="file-path" id="filePath">root_anomaly.bin</div>
+            <div class="file-list" id="fileList"></div>
+            <div class="finale-warning">DOSYA OYUNUN KÖK KLASÖRÜNDE. SİLME İŞLEMİNİ SEN YAPMALISIN. DOSYA SİLİNENE KADAR SİSTEM SENİ BIRAKMAYACAK.</div>
+            <div class="panel-actions">
+              <button id="btnOpenExplorer" class="primary-btn">DOSYA GEZGİNİNİ AÇ [F2]</button>
+              <button id="btnRefreshFiles" class="ghost-btn">DURUMU KONTROL ET</button>
+            </div>
+            <div class="finale-status" id="finaleStatus">DOSYA BEKLENİYOR...</div>
+          </div>
+        </section>
+
+        <!-- ENDING -->
+        <section id="ending" class="overlay ending hidden">
+          <div class="ending-inner">
+            <div class="ending-seed" id="endingSeed"></div>
+            <div class="ending-line" id="endingLine"></div>
+            <div class="ending-cursor">█</div>
+          </div>
+        </section>
+
+        <div id="notifications" class="notifications"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/content.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

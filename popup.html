@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' data:; script-src 'self'">
+  <title>LIMBO_OS</title>
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/popup.css">
+</head>
+<body>
+  <div class="window" id="window">
+    <div class="titlebar" id="titlebar">
+      <div class="tb-left">
+        <span class="icon" aria-hidden="true">!</span>
+        <span class="title" id="title">LIMBO_OS</span>
+      </div>
+      <div class="tb-buttons">
+        <button class="tb-btn" tabindex="-1" aria-label="Simge durumu">_</button>
+        <button class="tb-btn" tabindex="-1" aria-label="Büyüt">□</button>
+        <button class="tb-btn close" id="closeX" aria-label="Kapat">×</button>
+      </div>
+    </div>
+    <div class="window-body">
+      <div class="dialog-row">
+        <div class="dialog-icon" id="dialogIcon">!</div>
+        <div class="dialog-copy">
+          <div class="tag" id="tag">SYSTEM FAULT</div>
+          <div class="message" id="message">Bilinmeyen sistem hatası.</div>
+          <div class="caret-line"><span class="caret">█</span></div>
+        </div>
+      </div>
+      <div class="buttons" id="buttons"></div>
+      <div class="puzzle" id="puzzle" hidden>
+        <div class="puzzle-head"><span>KISA DEVRE PUZZLE</span><span id="puzzleState">0 / 4</span></div>
+        <div class="puzzle-display" id="puzzleDisplay">_ _ _ _</div>
+        <div class="puzzle-grid" id="puzzleGrid"></div>
+        <div class="puzzle-note" id="puzzleNote">SIRAYI TAMAMLA.</div>
+      </div>
+    </div>
+    <div class="statusbar">
+      <span id="statusLeft">LIMBO_OS / EXCEPTION HANDLER</span>
+      <span id="statusRight">PID 0x0009</span>
+    </div>
+  </div>
+  <script src="js/popup.js"></script>
+</body>
+</html>

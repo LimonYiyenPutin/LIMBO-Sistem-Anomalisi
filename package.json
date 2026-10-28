@@ -1,0 +1,85 @@
+{
+  "name": "limbo-sistem-anomalisi",
+  "productName": "LIMBO - Sistem Anomalisi",
+  "version": "1.0.0",
+  "description": "L.I.M.B.O. // SISTEM_ANOMALISI - 15 katmanli retro FPS / psikolojik korku deneyimi",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:linux": "bash start.sh",
+    "start:win": "electron .",
+    "dev": "electron . --dev",
+    "build": "bash build-single.sh",
+    "build:linux": "bash build-single.sh",
+    "build:win": "electron-builder --win --x64",
+    "build:win:dir": "electron-builder --win dir --x64",
+    "build:dir": "electron-builder --linux dir --x64"
+  },
+  "author": "LIMBO",
+  "license": "MIT",
+  "build": {
+    "appId": "com.limbo.sistemanomalisi",
+    "productName": "LIMBO - Sistem Anomalisi",
+    "asar": true,
+    "compression": "normal",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "popup-preload.js",
+      "index.html",
+      "popup.html",
+      "terminal.html",
+      "css/**/*",
+      "js/**/*",
+      "assets/**/*",
+      "package.json",
+      "README.md",
+      "LICENSE",
+      "SIFIRLA.txt"
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "assets/icon.png",
+      "category": "Game",
+      "executableName": "limbo-sistem-anomalisi",
+      "artifactName": "LIMBO-Sistem-Anomalisi-${version}.${ext}",
+      "synopsis": "15 katmanli retro FPS / psikolojik korku deneyimi",
+      "description": "L.I.M.B.O. // SISTEM_ANOMALISI. 15 katman, gercek masaustu pencereleri, kok dosya ve kalici kapanma."
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "artifactName": "LIMBO-Sistem-Anomalisi-Setup-${version}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LIMBO - Sistem Anomalisi",
+      "uninstallDisplayName": "LIMBO - Sistem Anomalisi ${version}",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "LIMBO-Sistem-Anomalisi-${version}-portable.${ext}"
+    },
+    "appImage": {
+      "artifactName": "LIMBO-Sistem-Anomalisi-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "^24.13.3"
+  }
+}

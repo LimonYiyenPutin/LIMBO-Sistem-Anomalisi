@@ -1,0 +1,21 @@
+# Dependencies and local toolchains
+node_modules/
+.tools/
+
+# Build output
+dist/
+out/
+build/
+
+# Runtime state
+LIMBO_SANDBOX/
+root_anomaly.bin
+.limbo_reset.token
+limbo_reset.token
+.limbo_*
+
+# Logs and editor/OS junk
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

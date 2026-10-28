@@ -1,0 +1,17 @@
+L.I.M.B.O. // SIFIRLAMA DOSYASI
+================================
+
+Bu dosya, kalıcı kapanmadan sonra oyunu geri yüklemek için burada.
+Dosya oyunun kök klasöründe veya kullanıcı veri klasöründe durur.
+Oyun içindeki "SIFIRLA.TXT KONUMUNU AÇ" düğmesi de bu dosyayı bulmanı sağlar.
+
+SIFIRLAMAK İÇİN:
+  1. Bu dosyayı bir metin düzenleyiciyle aç.
+  2. Aşağıdaki satırın başındaki "# " işaretini sil.
+  3. Dosyayı kaydet. Oyun açıksa birkaç saniye içinde sıfırlanır.
+
+AKTİF SIFIRLAMA SATIRI:
+# LIMBO_RESET_0x0009
+
+NOT: Satır yorumlu (#) kaldığı sürece oyun sıfırlanmaz.
+Sıfırlama tamamlandığında bu satır otomatik olarak yeniden yorumlanır.

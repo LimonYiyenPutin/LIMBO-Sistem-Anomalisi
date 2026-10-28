@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' data:; script-src 'self'">
+  <title>LIMBO_OS // TERMINAL</title>
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/terminal.css">
+</head>
+<body>
+  <div class="terminal">
+    <div class="term-titlebar">
+      <div class="term-brand"><span class="led"></span> LIMBO_OS <span class="dim">// YAN TERMİNAL</span></div>
+      <div class="term-controls">
+        <span class="tbtn">_</span><span class="tbtn">□</span>
+        <button class="tbtn close" id="closeX" aria-label="Kapat">×</button>
+      </div>
+    </div>
+    <div class="term-head" id="termTitle">SISTEM GUNLUKLERI</div>
+    <div class="term-screen">
+      <div class="term-log" id="log"></div>
+      <div class="code-panel" id="codePanel">
+        <div class="code-label">ERİŞİM KODU</div>
+        <div class="code-value" id="codeValue">----</div>
+        <div class="code-note">PARÇALAR DİKKATLE OKUNMALI</div>
+      </div>
+      <div class="term-cursor"><span class="prompt">root@limbo:~$</span> <span class="caret">█</span></div>
+    </div>
+    <div class="term-footer">
+      <span id="footer">UID 0x0009 // SESSION ACTIVE</span>
+      <span class="dim" id="clock">00:00:00</span>
+    </div>
+  </div>
+  <script src="js/terminal.js"></script>
+</body>
+</html>
