@@ -470,6 +470,19 @@ const LIMBO_CONTENT = (() => {
         '#########################',
       ],
       enemies: ['crawler', 'drone', 'wraith', 'crawler', 'drone', 'wraith', 'crawler', 'drone'],
+      items: [
+        { id: 'keycard_08', x: 22.5, y: 2.5 },
+        { id: 'note_08', x: 11.5, y: 8.5 },
+        { id: 'shard_08', x: 16.5, y: 12.5 },
+      ],
+      doors: [
+        {
+          id: 'level8_vault', cells: [[8, 14], [9, 14], [10, 14]],
+          key: 'keycard_08', lockedText: 'YETKİ KARTI GEREKLİ // KART_08',
+          prompt: 'BELLEK KASASI — YETKİ KARTI GEREKLİ',
+          openText: 'BELLEK KASASI AÇILDI.',
+        },
+      ],
       popups: [
         { at: 9, title: 'BELLEK SIZINTISI', tag: 'MEMORY_FAULT', severity: 'error', body: 'Bellek kullanımı: %98.7\nÖnerilen işlem: NEFES ALMAYI BIRAK.', life: 9000 },
       ],
@@ -487,17 +500,19 @@ const LIMBO_CONTENT = (() => {
           { text: '> GİZLİ_DİZİN erişimi: KISMİ', kind: 'warn' },
           { text: '', kind: 'gap' },
           { text: 'SEKTÖR KİLİDİ 4 HANELİDİR.', kind: 'system' },
-          { text: 'Parça 1: 4', kind: 'ghost' },
-          { text: 'Parça 2: 7   (kayıp sektörden kurtarıldı)', kind: 'ghost' },
-          { text: 'Parça 3: 1', kind: 'ghost' },
-          { text: 'Parça 4: 9', kind: 'ghost' },
+          { text: 'Kod, arşiv kasasının içinde tutuluyor.', kind: 'ghost' },
+          { text: 'KASA DOSYASI: SEKTOR_09.lock', kind: 'ghost' },
+          { text: 'OVERRIDE TOKEN: LIMBO_09', kind: 'ghost' },
+          { text: 'YAZILACAK SATIR: OVERRIDE=LIMBO_09', kind: 'ghost' },
+          { text: 'ARAÇ: DOSYA KONSOLU [F4]', kind: 'dim' },
           { text: '', kind: 'gap' },
+          { text: '> dosyayı doğru içerikle değiştir.', kind: 'system' },
+          { text: '> kasa açıldığında sektör şifresini oku.', kind: 'dim' },
           { text: '> UYARI: bu terminali kapatma.', kind: 'err' },
-          { text: '> kapı açıldığında artık geri dönüş yok.', kind: 'dim' },
         ],
       },
-      intro: 'Duvarlar artık kod. Kapılar artık izin. Burada hiçbir şey saklı değil; sadece okumadığın satırlar var. Yan terminal açık kalacak.',
-      objective: 'YAN TERMİNALDEN 4 HANELİ KODU BUL. SEKTÖR KİLİDİNİ AÇ.',
+      intro: 'Duvarlar artık kod. Kapılar artık izin. Burada hiçbir şey saklı değil; sadece okumadığın satırlar var. Soldaki arşiv kasası dosya sistemiyle mühürlenmiş. Yan terminal açık kalacak.',
+      objective: 'SEKTOR_09.LOCK DOSYASINI DEĞİŞTİR [F4]. KASAYI AÇ. ŞİFREYİ BUL.',
       complete: 'Dizin açıldı. İçinde tek bir dosya vardı: senin oturum kaydın. Ve o kayıt çoktan silinmişti.',
       threat: 'ORTA',
       map: [
@@ -517,15 +532,33 @@ const LIMBO_CONTENT = (() => {
         '#.....#...........#.....#',
         '#..####...........####..#',
         '#.......................#',
-        '#..S.................S..#',
-        '#.......................#',
-        '#.......A.........E.....#',
-        '#.......................#',
+        '###D##...............S..#',
+        '#.....#.................#',
+        '#.....#.A.........E.....#',
+        '#.....#.................#',
         '#########################',
       ],
       enemies: ['wraith', 'drone', 'wraith', 'crawler', 'wraith', 'drone'],
+      items: [
+        { id: 'note_09', x: 3.5, y: 18.5 },
+        { id: 'shard_09', x: 2.5, y: 19.5 },
+      ],
+      doors: [
+        {
+          id: 'level9_archive', cells: [[3, 16]], file: 'SEKTOR_09.lock', token: 'OVERRIDE=LIMBO_09',
+          lockedText: 'KASA MÜHÜRLÜ // DOSYA KONSOLU [F4]',
+          prompt: 'ARŞİV KASASI — DOSYA KONSOLU [F4]',
+          openText: 'ARŞİV KASASI AÇILDI.',
+        },
+      ],
+      filePuzzle: {
+        file: 'SEKTOR_09.lock',
+        token: 'OVERRIDE=LIMBO_09',
+        door: 'level9_archive',
+        initial: 'SEKTÖR 09 // ARŞİV KASASI\nSahiplik: LIMBO_CEKIRDEK\nDurum: YAZMA KORUMALI\n\n> kilit dosyasını değiştirmek için doğru override token gerekli.\n> token yan terminalde yazılı.\n',
+      },
       popups: [
-        { at: 0, title: 'YAN TERMİNAL AÇILDI', tag: 'SIDE_CHANNEL', severity: 'info', body: 'SEKTÖR 09 kilidi 4 haneli.\nKod Yan Terminal penceresinde parçalanmış halde.', life: 9000 },
+        { at: 0, title: 'YAN TERMİNAL AÇILDI', tag: 'SIDE_CHANNEL', severity: 'info', body: 'SEKTÖR 09 arşiv kasası dosya sistemiyle mühürlü.\nSEKTOR_09.lock dosyasını F4 konsolundan değiştir.', life: 9000 },
       ],
     },
     {
@@ -971,6 +1004,45 @@ const LIMBO_CONTENT = (() => {
     },
   };
 
+  const ITEMS = {
+    keycard_08: {
+      id: 'keycard_08', name: 'KART_08', tag: 'YETKİ KARTI', kind: 'key',
+      sprite: 'keycard', tint: '#ffd36a', height: 0.34,
+      desc: 'BELLEK SIZINTISI katmanının arşiv kasasını açar. Kartın üzerinde kendi operatör kimliğin yazıyor.',
+    },
+    note_08: {
+      id: 'note_08', name: 'NOT_08', tag: 'KASA NOTU', kind: 'note',
+      sprite: 'note', tint: '#d8e6c8', height: 0.32, note: 'note_08',
+      desc: 'Bellek kasasının içinden çıkan, el yazısıyla karalanmış not.',
+    },
+    note_09: {
+      id: 'note_09', name: 'NOT_09', tag: 'SEKTÖR NOTU', kind: 'note',
+      sprite: 'note', tint: '#d8e6c8', height: 0.32, note: 'note_09',
+      desc: 'Arşiv kasasının içinde duran katlanmış sektör notu.',
+    },
+    shard_08: {
+      id: 'shard_08', name: 'BELLEK PARÇASI', tag: 'KALICI YÜKSELTME', kind: 'upgrade',
+      sprite: 'pickup', tint: '#7ee8ff', height: 0.42, maxHp: 15,
+      desc: 'Sistem bütünlüğünü kalıcı olarak +15 artırır.',
+    },
+    shard_09: {
+      id: 'shard_09', name: 'ARŞİV PARÇASI', tag: 'KALICI YÜKSELTME', kind: 'upgrade',
+      sprite: 'pickup', tint: '#ffd36a', height: 0.42, maxHp: 15,
+      desc: 'Sistem bütünlüğünü kalıcı olarak +15 artırır.',
+    },
+  };
+
+  const NOTES = {
+    note_08: {
+      id: 'note_08', title: 'BELLEK KASASI // 0x08',
+      body: 'Kartı okuyucuya soktuğunda kapı açılacak.\n\nAma şunu bil: bu kasada saklanan şey bir hatıra değil.\nBir yedek. Senin ilk yedeğin.\n\n> 0x08 // silinmemiş, sadece bekletilmiş.',
+    },
+    note_09: {
+      id: 'note_09', title: 'SEKTÖR 09 // KASA NOTU',
+      body: 'Dosya mührü kırıldıysa doğru kişisin.\n\nSEKTÖR KİLİDİ: 4719\n\n> Bu kodu yan terminale gir.\n> Kasa kapandığında tekrar açılmayacak.\n> Aşağıda bir kapı daha var. Sen açmadın.',
+    },
+  };
+
   const RANKS = [
     { min: 0, label: 'D', name: 'VERİ ÇÖPÜ' },
     { min: 260, label: 'C', name: 'BOZUK SÜREÇ' },
@@ -1027,6 +1099,8 @@ const LIMBO_CONTENT = (() => {
     LEVELS,
     ENEMY_TYPES,
     BOSSES,
+    ITEMS,
+    NOTES,
     RANKS,
     BOOT_LINES,
     MENU_WHISPERS,

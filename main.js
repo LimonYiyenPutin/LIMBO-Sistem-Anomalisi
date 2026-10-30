@@ -17,6 +17,15 @@ try {
 const ROOT = __dirname;
 const APP_HOME = app.isPackaged ? app.getPath('userData') : ROOT;
 const SANDBOX = path.join(APP_HOME, 'LIMBO_SANDBOX');
+const SAVE_FILE = path.join(app.getPath('userData'), 'limbo-save.json');
+const SAVE_BACKUP = path.join(app.getPath('userData'), 'limbo-save.json.bak');
+const SAVE_TEMP = path.join(app.getPath('userData'), 'limbo-save.json.tmp');
+const MAX_SAVE_BYTES = 512 * 1024;
+const MAX_SANDBOX_READ = 128 * 1024;
+const MAX_SANDBOX_WRITE = 8 * 1024;
+// Writes are deliberately narrower than reads: only files that are part of an
+// authored puzzle may be modified from the renderer.
+const WRITABLE_SANDBOX_FILES = new Set(['SEKTOR_09.lock']);
 const IS_WIN = process.platform === 'win32';
 const IS_LINUX = process.platform === 'linux';
 if (IS_WIN) {
@@ -426,7 +435,9 @@ let terminalWin = null;
 let popupWindows = new Map(); // id -> { win, timer }
 let popupSeq = 0;
 
-const argv = process.argv.slice(2);
+// `electron .` places the app directory at argv[1]; a packaged executable puts
+// the first user argument there instead.  Keep custom switches working in both.
+const argv = process.argv.slice(app.isPackaged ? 1 : 2);
 function argValue(name) {
   const prefix = `--${name}=`;
   const found = argv.find((a) => a.startsWith(prefix));
@@ -472,17 +483,127 @@ function ensureSandbox() {
 }
 
 function safeName(name) {
-  return typeof name === 'string' && /^[A-Za-z0-9._-]{1,80}$/.test(name) && name !== '.' && name !== '..';
+  if (typeof name !== 'string') return false;
+  if (name.length < 1 || name.length > 80) return false;
+  if (!/^[A-Za-z0-9._-]+$/.test(name)) return false;
+  if (name === '.' || name === '..') return false;
+  if (/[. ]$/.test(name)) return false;
+  // Windows device names are not ordinary files even inside a sandbox.
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(name)) return false;
+  return true;
 }
 function safePath(name) {
   if (!safeName(name)) return null;
   const p = path.resolve(SANDBOX, name);
-  if (!p.startsWith(SANDBOX + path.sep)) return null;
+  const rel = path.relative(SANDBOX, p);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
   // Never follow links out of the sandbox, even if one is planted there.
   try {
     if (fs.lstatSync(p).isSymbolicLink()) return null;
   } catch (_) { /* file does not exist yet */ }
   return p;
+}
+function isWritableSandboxFile(name) {
+  return WRITABLE_SANDBOX_FILES.has(name);
+}
+function sandboxRead(name) {
+  const p = safePath(name);
+  if (!p) return { ok: false, error: 'INVALID_PATH' };
+  try {
+    const st = fs.lstatSync(p);
+    if (!st.isFile() || st.isSymbolicLink()) return { ok: false, error: 'NOT_A_FILE' };
+    if (st.size > MAX_SANDBOX_READ) return { ok: false, error: 'FILE_TOO_LARGE', size: st.size };
+    return { ok: true, name, content: fs.readFileSync(p, 'utf8'), size: st.size };
+  } catch (_) {
+    return { ok: false, error: 'READ_FAILED' };
+  }
+}
+function sandboxWrite(name, content) {
+  if (!isWritableSandboxFile(name)) return { ok: false, error: 'NOT_WRITABLE' };
+  const p = safePath(name);
+  if (!p) return { ok: false, error: 'INVALID_PATH' };
+  if (typeof content !== 'string') return { ok: false, error: 'INVALID_CONTENT' };
+  if (Buffer.byteLength(content, 'utf8') > MAX_SANDBOX_WRITE) return { ok: false, error: 'CONTENT_TOO_LARGE' };
+  try {
+    fs.mkdirSync(SANDBOX, { recursive: true });
+    fs.writeFileSync(p, content, 'utf8');
+    return { ok: true, name, size: Buffer.byteLength(content, 'utf8') };
+  } catch (_) {
+    return { ok: false, error: 'WRITE_FAILED' };
+  }
+}
+function sandboxEnsure(name, content) {
+  if (!isWritableSandboxFile(name)) return { ok: false, error: 'NOT_WRITABLE' };
+  const p = safePath(name);
+  if (!p) return { ok: false, error: 'INVALID_PATH' };
+  if (typeof content !== 'string' || Buffer.byteLength(content, 'utf8') > MAX_SANDBOX_WRITE) {
+    return { ok: false, error: 'INVALID_CONTENT' };
+  }
+  try {
+    fs.mkdirSync(SANDBOX, { recursive: true });
+    if (fs.existsSync(p)) return { ok: true, name, created: false };
+    fs.writeFileSync(p, content, 'utf8');
+    return { ok: true, name, created: true };
+  } catch (_) {
+    return { ok: false, error: 'WRITE_FAILED' };
+  }
+}
+function loadSaveFile() {
+  function parseFile(file) {
+    const raw = fs.readFileSync(file, 'utf8');
+    if (Buffer.byteLength(raw, 'utf8') > MAX_SAVE_BYTES) throw new Error('SAVE_TOO_LARGE');
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('INVALID_SAVE');
+    return data;
+  }
+  let corrupt = false;
+  try {
+    return { ok: true, data: parseFile(SAVE_FILE), source: 'save' };
+  } catch (err) {
+    if (fs.existsSync(SAVE_FILE)) corrupt = true;
+  }
+  try {
+    return { ok: true, data: parseFile(SAVE_BACKUP), source: 'backup', recovered: corrupt };
+  } catch (_) {
+    return { ok: false, corrupt, error: corrupt ? 'CORRUPT_SAVE' : 'NO_SAVE' };
+  }
+}
+function writeSaveFile(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { ok: false, error: 'INVALID_SAVE' };
+  }
+  let json;
+  try {
+    json = JSON.stringify(data, null, 2);
+  } catch (_) {
+    return { ok: false, error: 'SERIALIZE_FAILED' };
+  }
+  if (Buffer.byteLength(json, 'utf8') > MAX_SAVE_BYTES) return { ok: false, error: 'SAVE_TOO_LARGE' };
+  try {
+    fs.mkdirSync(path.dirname(SAVE_FILE), { recursive: true });
+    // Keep the previous good file as a recovery point, then replace the live
+    // save in one rename.  A crash cannot leave a half-written main file.
+    if (fs.existsSync(SAVE_FILE)) {
+      try { fs.copyFileSync(SAVE_FILE, SAVE_BACKUP); } catch (_) {}
+    }
+    fs.writeFileSync(SAVE_TEMP, json, 'utf8');
+    try {
+      fs.renameSync(SAVE_TEMP, SAVE_FILE);
+    } catch (_) {
+      try { fs.unlinkSync(SAVE_FILE); } catch (_) {}
+      fs.renameSync(SAVE_TEMP, SAVE_FILE);
+    }
+    return { ok: true };
+  } catch (err) {
+    try { if (fs.existsSync(SAVE_TEMP)) fs.unlinkSync(SAVE_TEMP); } catch (_) {}
+    return { ok: false, error: 'WRITE_FAILED', detail: String(err && err.message || err) };
+  }
+}
+function clearSaveFile() {
+  for (const file of [SAVE_FILE, SAVE_BACKUP, SAVE_TEMP]) {
+    try { if (fs.existsSync(file) && fs.lstatSync(file).isFile()) fs.unlinkSync(file); } catch (_) {}
+  }
+  return { ok: true };
 }
 function fileExists(name) {
   const p = safePath(name);
@@ -838,8 +959,14 @@ ipcMain.handle('sandbox:prepare', (_evt, files) => {
   for (const file of Array.isArray(files) ? files : []) {
     const p = safePath(file && file.name);
     if (!p) continue;
-    fs.writeFileSync(p, String((file && file.content) || ''), 'utf8');
-    created.push(file.name);
+    const content = String((file && file.content) || '');
+    if (Buffer.byteLength(content, 'utf8') > MAX_SANDBOX_READ) continue;
+    try {
+      fs.writeFileSync(p, content, 'utf8');
+      created.push(file.name);
+    } catch (err) {
+      console.error('SANDBOX_PREPARE_FAILED', err);
+    }
   }
   return { ok: true, path: SANDBOX, created };
 });
@@ -860,12 +987,23 @@ ipcMain.handle('sandbox:clear', (_evt, names) => {
   }
   return removed;
 });
+ipcMain.handle('sandbox:read', (_evt, name) => sandboxRead(name));
+ipcMain.handle('sandbox:write', (_evt, name, content) => sandboxWrite(name, content));
+ipcMain.handle('sandbox:ensure', (_evt, name, content) => sandboxEnsure(name, content));
+ipcMain.handle('save:load', () => loadSaveFile());
+ipcMain.handle('save:write', (_evt, data) => writeSaveFile(data));
+ipcMain.handle('save:clear', () => clearSaveFile());
 ipcMain.handle('sandbox:list', () => {
   ensureSandbox();
   try {
     return fs.readdirSync(SANDBOX).map((name) => {
-      const stat = fs.statSync(path.join(SANDBOX, name));
-      return { name, size: stat.size, dir: stat.isDirectory() };
+      const full = path.join(SANDBOX, name);
+      try {
+        const stat = fs.lstatSync(full);
+        return { name, size: stat.size, dir: stat.isDirectory(), link: stat.isSymbolicLink() };
+      } catch (_) {
+        return { name, size: 0, dir: false, link: false };
+      }
     });
   } catch (_) { return []; }
 });

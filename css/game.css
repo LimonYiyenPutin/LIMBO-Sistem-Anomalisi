@@ -1404,6 +1404,249 @@ body.final-mode .term-dead { color: #ff4b45; text-shadow: 0 0 22px rgba(255,40,4
 .notification.bad { border-color: rgba(255,75,69,.35); border-right-color: var(--danger); color: #ff9f9a; }
 @keyframes notifyIn { from { opacity: 0; transform: translateX(12px); } }
 
+/* ------------------------------------------------------------------ flashlight HUD */
+.tool-block { border-left-color: var(--amber); }
+.tool-line { display: flex; align-items: center; justify-content: space-between; gap: .4em; }
+#flashlightState {
+  color: #6b7c64;
+  font-size: .78em;
+  letter-spacing: .14em;
+  border: 1px solid rgba(255,200,87,.22);
+  padding: .06em .55em .04em;
+  transition: color .15s, border-color .15s, background .15s;
+}
+#flashlightState.on {
+  color: #151006;
+  background: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 0 14px rgba(255,200,87,.4);
+}
+.tool-block.on { box-shadow: 0 0 22px rgba(255,200,87,.14), inset 0 0 18px rgba(255,200,87,.04); }
+.puzzle-block { border-left-color: var(--danger); }
+.puzzle-line { display: flex; align-items: baseline; justify-content: space-between; gap: .5em; }
+#puzzleCountdown {
+  color: var(--amber);
+  font-size: 1.85em;
+  line-height: .9;
+  letter-spacing: .08em;
+  text-shadow: 0 0 12px rgba(255,200,87,.28);
+}
+#puzzleHint { color: #8b9c83; font-size: .58em; letter-spacing: .12em; text-align: right; }
+.puzzle-block.urgent { border-left-color: var(--danger); animation: puzzlePulse 1s steps(2) infinite; }
+.puzzle-block.urgent #puzzleCountdown { color: var(--danger); text-shadow: 0 0 14px rgba(255,75,69,.45); }
+@keyframes puzzlePulse { 50% { box-shadow: 0 0 22px rgba(255,75,69,.25); } }
+
+/* ------------------------------------------------------------------ inventory */
+.inventory-overlay .inv-panel { width: min(980px, 92%); }
+.inv-tabs { display: flex; gap: .45em; margin-bottom: 1em; }
+.inv-tabs button {
+  background: transparent;
+  border: 1px solid rgba(184,255,90,.18);
+  color: #7e9277;
+  padding: .28em 1.1em .22em;
+  font-size: .7em;
+  letter-spacing: .16em;
+  cursor: pointer;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.inv-tabs button:hover { border-color: rgba(184,255,90,.45); color: #c8ddbd; }
+.inv-tabs button.active {
+  color: #061006;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(184,255,90,.3);
+}
+.inv-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  gap: 1.2em;
+  min-height: 19em;
+}
+.inv-list-wrap { min-width: 0; }
+.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5em, 1fr)); gap: .5em; align-content: start; }
+.inv-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .18em;
+  text-align: left;
+  background: rgba(4,9,4,.7);
+  border: 1px solid rgba(184,255,90,.12);
+  padding: .55em .7em .5em;
+  cursor: pointer;
+  transition: border-color .12s, background .12s, transform .12s;
+}
+.inv-card:hover { border-color: rgba(184,255,90,.4); background: rgba(184,255,90,.045); transform: translateY(-1px); }
+.inv-card.active { border-color: var(--accent); background: rgba(184,255,90,.08); box-shadow: inset 0 0 16px rgba(184,255,90,.05); }
+.inv-card strong { color: #dff3d4; font-weight: 400; font-size: .86em; letter-spacing: .1em; }
+.inv-card span { color: #64785e; font-size: .58em; letter-spacing: .14em; }
+.inv-card.active span { color: var(--accent); }
+.inv-empty {
+  grid-column: 1 / -1;
+  border: 1px dashed rgba(184,255,90,.16);
+  padding: 1.1em .9em;
+  color: #5d7057;
+  font-size: .7em;
+  letter-spacing: .1em;
+}
+.inv-notes { display: flex; flex-direction: column; gap: .5em; }
+.inv-note-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .2em;
+  text-align: left;
+  background: rgba(4,9,4,.7);
+  border: 1px solid rgba(184,255,90,.12);
+  border-left: 2px solid rgba(184,255,90,.35);
+  padding: .5em .75em .45em;
+  cursor: pointer;
+}
+.inv-note-card:hover { border-color: rgba(184,255,90,.42); }
+.inv-note-card.active { border-left-color: var(--accent); background: rgba(184,255,90,.07); }
+.inv-note-card strong { color: #dff3d4; font-weight: 400; font-size: .76em; letter-spacing: .1em; }
+.inv-note-card span { color: #6f8169; font-size: .62em; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.inv-detail {
+  border: 1px solid rgba(184,255,90,.14);
+  background:
+    linear-gradient(180deg, rgba(184,255,90,.03), transparent 40%),
+    rgba(2,6,2,.55);
+  padding: 1em 1.05em;
+  min-height: 16em;
+  font-size: .72em;
+  color: #93a88b;
+  line-height: 1.45;
+}
+.inv-detail h3 { margin: .1em 0 .35em; color: #e5f8da; font-size: 1.7em; font-weight: 400; letter-spacing: .1em; }
+.inv-detail p { margin: .8em 0; color: #8fa587; }
+.inv-detail-tag { color: var(--accent); font-size: .72em; letter-spacing: .18em; }
+.inv-detail .primary-btn, .inv-detail .ghost-btn { margin-top: .6em; font-size: .82em; }
+.inv-note-body { white-space: pre-wrap; color: #b8cbaf; font-size: 1.05em; line-height: 1.55; }
+.inv-passive {
+  margin-top: .9em;
+  border: 1px solid rgba(66,255,208,.22);
+  color: #6fd8c2;
+  padding: .35em .6em .3em;
+  font-size: .72em;
+  letter-spacing: .1em;
+}
+
+/* ------------------------------------------------------------------ in-game file console */
+.file-console-overlay .fc-panel { width: min(840px, 62%); max-height: calc(100vh - 6.4em); }
+.fc-layout { display: grid; grid-template-columns: 15em minmax(0, 1fr); gap: 1.1em; min-height: 24em; }
+.fc-side {
+  border: 1px solid rgba(184,255,90,.13);
+  background: rgba(2,6,2,.6);
+  padding: .7em .65em;
+  display: flex;
+  flex-direction: column;
+  gap: .6em;
+}
+.fc-side-head { color: #5f7359; font-size: .56em; letter-spacing: .2em; }
+.fc-list { display: flex; flex-direction: column; gap: .4em; font-size: .64em; color: #6d8066; }
+.fc-file {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .15em;
+  text-align: left;
+  background: rgba(4,9,4,.7);
+  border: 1px solid rgba(184,255,90,.14);
+  padding: .4em .55em;
+  cursor: pointer;
+  color: inherit;
+}
+.fc-file:hover { border-color: rgba(184,255,90,.4); }
+.fc-file.active { border-left: 2px solid var(--amber); border-color: rgba(255,200,87,.35); background: rgba(255,200,87,.05); }
+.fc-file strong { color: #e0eccc; font-weight: 400; font-size: 1em; letter-spacing: .05em; }
+.fc-file span { color: #6f816a; font-size: .82em; letter-spacing: .08em; }
+.fc-warning {
+  margin-top: auto;
+  border-top: 1px solid rgba(184,255,90,.1);
+  padding-top: .55em;
+  color: #5d7057;
+  font-size: .52em;
+  line-height: 1.5;
+  letter-spacing: .05em;
+}
+.fc-editor { display: flex; flex-direction: column; gap: .6em; min-width: 0; }
+.fc-move-hint {
+  color: #6f816a;
+  font-size: .54em;
+  line-height: 1.5;
+  letter-spacing: .08em;
+  border-left: 2px solid rgba(184,255,90,.22);
+  padding-left: .6em;
+}
+.fc-path {
+  font-size: .68em;
+  letter-spacing: .12em;
+  color: var(--accent);
+  border-bottom: 1px solid rgba(184,255,90,.18);
+  padding: .15em .1em .35em;
+}
+.fc-path::before { content: '> LIMBO_SANDBOX/'; color: #53664c; }
+#fcContent {
+  flex: 1;
+  min-height: 18em;
+  resize: none;
+  background: rgba(1,4,1,.92);
+  border: 1px solid rgba(184,255,90,.2);
+  color: #c6ddb9;
+  padding: .85em .95em;
+  font-family: var(--font);
+  font-size: .82em;
+  line-height: 1.45;
+  letter-spacing: .04em;
+  outline: none;
+  user-select: text;
+  white-space: pre-wrap;
+  caret-color: var(--accent);
+  box-shadow: inset 0 0 38px rgba(0,0,0,.75);
+}
+#fcContent:focus { border-color: rgba(184,255,90,.55); box-shadow: inset 0 0 38px rgba(0,0,0,.75), 0 0 18px rgba(184,255,90,.08); }
+.fc-status {
+  font-size: .62em;
+  letter-spacing: .12em;
+  color: #6f8169;
+  border-left: 2px solid rgba(184,255,90,.3);
+  padding: .2em .55em;
+  background: rgba(184,255,90,.03);
+  min-height: 1.6em;
+}
+
+/* ------------------------------------------------------------------ timed puzzle / fake BSOD */
+.file-console-overlay {
+  background: rgba(0, 2, 0, .32);
+  backdrop-filter: none;
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 1.6em;
+}
+.keypad-overlay { background: rgba(0, 2, 0, .38); backdrop-filter: none; }
+.bsod-overlay {
+  z-index: 220;
+  background: #0078d7;
+  color: #fff;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  letter-spacing: 0;
+}
+.bsod-overlay::after { display: none; }
+.bsod-screen {
+  width: min(980px, 88%);
+  padding: 2.5em 2.8em;
+  display: flex;
+  flex-direction: column;
+  gap: .8em;
+}
+.bsod-face { font-size: clamp(72px, 11vw, 140px); line-height: .9; font-weight: 200; }
+.bsod-main { font-size: clamp(18px, 2vw, 27px); line-height: 1.3; max-width: 42em; }
+.bsod-sub { font-size: clamp(12px, 1.15vw, 16px); opacity: .86; margin-top: .6em; }
+.bsod-bar { width: 100%; max-width: 32em; height: 6px; background: rgba(255,255,255,.28); }
+.bsod-bar > i { display: block; height: 100%; width: 0; background: #fff; transition: width .35s linear; }
+.bsod-code { font-family: 'Consolas', 'Courier New', monospace; font-size: clamp(11px, 1vw, 14px); line-height: 1.7; opacity: .92; margin-top: 1em; }
+.bsod-foot { margin-top: auto; padding-top: 2em; font-size: clamp(10px, .9vw, 12px); opacity: .72; line-height: 1.6; }
+
 /* ------------------------------------------------------------------ small screens */
 @media (max-width: 1180px) {
   .menu-side { display: none; }
@@ -1412,6 +1655,11 @@ body.final-mode .term-dead { color: #ff4b45; text-shadow: 0 0 22px rgba(255,40,4
   .settings-grid { grid-template-columns: 1fr; }
   .chapter-grid { grid-template-columns: repeat(3, 1fr); }
   .hud-footer { display: none; }
+  .inv-layout { grid-template-columns: 1fr; }
+  .fc-layout { grid-template-columns: 1fr; }
+  .file-console-overlay .fc-panel { width: 64%; }
+  .fc-side { flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+  .fc-warning { flex-basis: 100%; margin-top: 0; }
 }
 @media (max-height: 720px) {
   .boot-main { margin-top: -1em; }

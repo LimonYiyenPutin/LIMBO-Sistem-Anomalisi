@@ -104,15 +104,32 @@ kullanılabilir.
 | `Ok tuşları` / `WASD` | Haritada kaydır |
 | `1 / 2 / 3` | Veri Bıçağı / Sektör Tüfeği / Çekirdek Makinesi |
 | `E` | Terminal / çıkışla etkileşime gir |
-| `F` | Açık harici pencereyi kapat (yönetici kalkanı) |
-| `Q` | Mutlak Sıfır donma protokolü (12. katman) |
+| `I` | Envanteri aç/kapat |
+| `F` | Açık harici pencereyi kapat; pencere yoksa feneri aç/kapat |
 | `F2` | `LIMBO_SANDBOX` dosya gezginini aç |
 | `F3` | Hitbox / çarpışma kutusu katmanını aç/kapat |
+| `F4` | Oyun içi dosya konsolu (dosya bulmacası olan katmanlarda) |
+| `Q` | Mutlak Sıfır donma protokolü (12. katman) |
 | `Esc` | Duraklat / panelden çık |
 | `Shift + R` | Katmanı yeniden başlat |
 
 `T` fare modundayken oyun girdileri durur; böylece harici pencereler gerçekten
 tıklanabilir. Popup/terminal kapandığında ana pencere yeniden odaklanır.
+
+### Zamanlı puzzle'lar
+
+Dosya konsolu veya terminal tuş takımı açıldığında görünür bir **60 saniyelik**
+sayaç başlar. Panel açık kaldığı sürece WASD ile hareket etmeye devam edebilirsin;
+fare nişanı panelden çıkmak için serbest kalır. Panel kendi kendine kapanmaz.
+Süre dolduğunda sahte bir mavi ekran (BSOD) gösterilir, ilerleme kaydedilir ve
+uygulama kapanır. Doğru dosya token'ı veya terminal kodu girildiğinde sayaç durur.
+
+### 3B nişan
+
+Silahlar artık ekranın tam merkezindeki nişan doğrultusunda ateş eder. Yukarı veya
+aşağı baktığında merminin yüksekliği de değişir; düşmanın gövde kutusuna denk
+gelmeyen atışlar hasar vermez. Çekirdek makinesinin enerji küresi de aynı eğimle
+ilerler ve patlama mesafesi üç boyutlu hesaplanır.
 
 ## Akış
 

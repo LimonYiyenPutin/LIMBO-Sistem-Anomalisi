@@ -8,9 +8,10 @@
   const SAVE_KEY = 'limbo_progress_v3';
   const SETTINGS_KEY = 'limbo_settings_v3';
   const FINAL_KEY = 'limbo_final_v1';
+  const GAME_SAVE_VERSION = 1;
   const DEV_MODE = new URLSearchParams(window.location.search).get('dev') === '1';
 
-  const WALLS = new Set(['#', '%', '+']);
+  const WALLS = new Set(['#', '%', '+', 'D', 'L']);
   const WEAPONS = [
     { key: 'blade', name: 'VERİ BIÇAĞI', slot: '01', sfx: 'blade' },
     { key: 'rifle', name: 'SEKTÖR TÜFEĞİ', slot: '02', sfx: 'rifle' },
@@ -76,6 +77,26 @@
     exitOpen: false,
     exitReason: '',
     objectiveText: '',
+    flashlight: false,
+    flashlightLevel: 1,
+    doors: [],
+    itemPickups: [],
+    interactDoor: null,
+    checkpointTimer: 0,
+    saveCorrupt: false,
+    saveRecovered: false,
+    fileConsole: {
+      open: false, file: '', content: '', status: '', source: '', targetDoor: null,
+    },
+    keypadOpen: false,
+    puzzleChallenge: {
+      active: false, remaining: 60, levelId: 0, deadline: 0, reason: '', expired: false,
+      solved: false, paused: false, solvedReasons: Object.create(null),
+    },
+    bsodActive: false,
+    inventoryTab: 'items',
+    selectedItem: null,
+    selectedNote: null,
     wave: 0,
     waveTotal: 0,
     waveGroups: [],
@@ -222,6 +243,11 @@
     last: 1,
     started: false,
     deaths: 0,
+    items: [],
+    notes: [],
+    doors: {},
+    puzzles: {},
+    checkpoint: null,
   };
 
   // --------------------------------------------------------------- utilities
@@ -397,28 +423,164 @@
     }
   }
 
-  function loadState() {
-    const saved = loadJSON(SAVE_KEY, null);
-    if (saved) {
-      if (Array.isArray(saved.completed)) {
-        progress.completed = saved.completed.filter((n) => Number.isInteger(n) && n >= 1 && n <= 15);
-      }
-      progress.last = clamp(Number(saved.last) || 1, 1, 15);
-      progress.started = Boolean(saved.started);
-      progress.deaths = Math.max(0, Number(saved.deaths) || 0);
+  function sanitizeIdList(value, table, limit = 64) {
+    if (!Array.isArray(value)) return [];
+    const out = [];
+    for (const id of value) {
+      if (typeof id === 'string' && table[id] && !out.includes(id)) out.push(id);
+      if (out.length >= limit) break;
     }
-    const s = loadJSON(SETTINGS_KEY, null);
-    if (s) {
-      settings.sens = clamp(Number(s.sens) || 1, 0.25, 2.5);
-      settings.volume = clamp(Number(s.volume) || 70, 0, 100);
-      settings.popups = clamp(Number(s.popups), 0, 2);
-      if (!Number.isFinite(settings.popups)) settings.popups = 2;
-      settings.crt = s.crt !== false;
-      settings.shake = s.shake !== false;
-      settings.fullscreen = Boolean(s.fullscreen);
-      settings.spill = Boolean(s.spill);
-      settings.wallpaper = Boolean(s.wallpaper);
-      settings.takeover = s.takeover !== false;
+    return out;
+  }
+
+  function sanitizeFlagMap(value, limit = 128) {
+    const out = {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+    let count = 0;
+    for (const key of Object.keys(value)) {
+      if (!/^[A-Za-z0-9_.-]{1,80}$/.test(key)) continue;
+      if (typeof value[key] === 'boolean') out[key] = value[key];
+      else if (typeof value[key] === 'number' && Number.isFinite(value[key])) out[key] = value[key];
+      else if (typeof value[key] === 'string' && value[key].length <= 200) out[key] = value[key];
+      else continue;
+      if (++count >= limit) break;
+    }
+    return out;
+  }
+
+  function applyProgressData(saved) {
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+    if (Array.isArray(saved.completed)) {
+      progress.completed = saved.completed.filter((n) => Number.isInteger(n) && n >= 1 && n <= 15);
+    }
+    progress.last = clamp(Number(saved.last) || 1, 1, 15);
+    progress.started = Boolean(saved.started);
+    progress.deaths = Math.max(0, Number(saved.deaths) || 0);
+    progress.items = sanitizeIdList(saved.items, CONTENT.ITEMS);
+    progress.notes = sanitizeIdList(saved.notes, CONTENT.NOTES);
+    progress.doors = sanitizeFlagMap(saved.doors);
+    progress.puzzles = sanitizeFlagMap(saved.puzzles);
+    const cp = saved.checkpoint;
+    if (cp && Number.isInteger(cp.levelId) && cp.levelId >= 1 && cp.levelId <= 15
+      && Number.isFinite(Number(cp.x)) && Number.isFinite(Number(cp.y))) {
+      progress.checkpoint = {
+        levelId: cp.levelId,
+        x: Number(cp.x), y: Number(cp.y),
+        angle: Number.isFinite(Number(cp.angle)) ? Number(cp.angle) : 0,
+        at: Number(cp.at) || 0,
+      };
+    } else {
+      progress.checkpoint = null;
+    }
+  }
+
+  function applySettingsData(s) {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) return;
+    settings.sens = clamp(Number(s.sens) || 1, 0.25, 2.5);
+    settings.volume = clamp(Number(s.volume) || 70, 0, 100);
+    settings.popups = clamp(Number(s.popups), 0, 2);
+    if (!Number.isFinite(settings.popups)) settings.popups = 2;
+    settings.crt = s.crt !== false;
+    settings.shake = s.shake !== false;
+    settings.fullscreen = Boolean(s.fullscreen);
+    settings.spill = Boolean(s.spill);
+    settings.wallpaper = Boolean(s.wallpaper);
+    settings.takeover = s.takeover !== false;
+  }
+
+  function loadState() {
+    applyProgressData(loadJSON(SAVE_KEY, null));
+    applySettingsData(loadJSON(SETTINGS_KEY, null));
+  }
+
+  let saveFileTimer = null;
+  let saveFileWriting = false;
+  let saveFileDirty = false;
+
+  function savePayload() {
+    return {
+      version: GAME_SAVE_VERSION,
+      savedAt: new Date().toISOString(),
+      progress: {
+        completed: progress.completed.slice(),
+        last: progress.last,
+        started: progress.started,
+        deaths: progress.deaths,
+        items: progress.items.slice(),
+        notes: progress.notes.slice(),
+        doors: Object.assign({}, progress.doors),
+        puzzles: Object.assign({}, progress.puzzles),
+        checkpoint: progress.checkpoint ? Object.assign({}, progress.checkpoint) : null,
+      },
+      settings: {
+        sens: settings.sens,
+        volume: settings.volume,
+        popups: settings.popups,
+        crt: settings.crt,
+        shake: settings.shake,
+        fullscreen: settings.fullscreen,
+        spill: settings.spill,
+        wallpaper: settings.wallpaper,
+        takeover: settings.takeover,
+      },
+    };
+  }
+
+  function scheduleFileSave(delay = 650) {
+    if (!window.limboOS || !window.limboOS.writeSave) return;
+    if (saveFileTimer) clearTimeout(saveFileTimer);
+    saveFileTimer = setTimeout(() => {
+      saveFileTimer = null;
+      flushFileSave();
+    }, Math.max(120, delay));
+  }
+
+  function flushFileSave() {
+    if (!window.limboOS || !window.limboOS.writeSave) return;
+    if (saveFileWriting) {
+      saveFileDirty = true;
+      return;
+    }
+    saveFileWriting = true;
+    saveFileDirty = false;
+    window.limboOS.writeSave(savePayload()).then((res) => {
+      if (!res || !res.ok) {
+        G.saveWriteFailed = true;
+      } else {
+        G.saveWriteFailed = false;
+      }
+    }).catch(() => {
+      G.saveWriteFailed = true;
+    }).finally(() => {
+      saveFileWriting = false;
+      if (saveFileDirty) {
+        saveFileDirty = false;
+        scheduleFileSave(250);
+      }
+    });
+  }
+
+  function applySavePayload(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+    if (data.progress) applyProgressData(data.progress);
+    if (data.settings) applySettingsData(data.settings);
+    return true;
+  }
+
+  async function loadGameState() {
+    loadState();
+    if (!window.limboOS || !window.limboOS.loadSave) return;
+    try {
+      const res = await window.limboOS.loadSave();
+      if (res && res.ok && res.data) {
+        applySavePayload(res.data);
+        G.saveRecovered = Boolean(res.recovered);
+        if (G.saveRecovered) G.saveCorrupt = true;
+      } else if (res && res.corrupt) {
+        G.saveCorrupt = true;
+      }
+    } catch (_) {
+      // The localStorage copy remains the fallback; never block boot on disk IO.
     }
   }
 
@@ -426,12 +588,52 @@
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(progress));
     } catch (_) {}
+    scheduleFileSave();
   }
   function saveSettings() {
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     } catch (_) {}
+    scheduleFileSave();
   }
+
+  function resetGameProgress() {
+    progress.completed = [];
+    progress.last = 1;
+    progress.started = false;
+    progress.deaths = 0;
+    progress.items = [];
+    progress.notes = [];
+    progress.doors = {};
+    progress.puzzles = {};
+    progress.checkpoint = null;
+    G.saveCorrupt = false;
+    G.saveRecovered = false;
+    G.flashlight = false;
+    G.bsodActive = false;
+    G.fileConsole.open = false;
+    G.keypadOpen = false;
+    resetPuzzleChallenge();
+    toggleHidden('fileConsole', true);
+    toggleHidden('keypad', true);
+    toggleHidden('bsod', true);
+    const bsodBar = $('bsodBar');
+    if (bsodBar) bsodBar.style.width = '0%';
+    setText('bsodPercent', '0');
+    try { localStorage.removeItem(SAVE_KEY); } catch (_) {}
+    if (saveFileTimer) { clearTimeout(saveFileTimer); saveFileTimer = null; }
+    if (window.limboOS) {
+      if (window.limboOS.clearSave) window.limboOS.clearSave().catch(() => {});
+      if (window.limboOS.sandboxClear) {
+        window.limboOS.sandboxClear([
+          'SEKTOR_09.lock',
+          'GHOST_001.ghost', 'GHOST_002.ghost', 'GHOST_003.ghost',
+        ]).catch(() => {});
+      }
+    }
+    updateMenuInfo();
+  }
+
   function markCompleted(levelId) {
     if (!progress.completed.includes(levelId)) {
       progress.completed.push(levelId);
@@ -651,6 +853,11 @@
     if (G.mode !== 'playing' || G.takeover.active || G.kernel.active) return;
     const want = open === undefined ? !G.mapOpen : Boolean(open);
     if (want === G.mapOpen) return;
+    if (want && G.puzzleChallenge.active) {
+      showNotify('PUZZLE SÜRESİ İŞLİYOR // HARİTA KAPALI', 'warn', 2400);
+      sfx('denied');
+      return;
+    }
     G.mapOpen = want;
     document.body.classList.toggle('map-open', want);
     toggleHidden('mapOverlay', !want);
@@ -1272,13 +1479,8 @@
     });
     const reset = $('btnResetProgress');
     if (reset) reset.addEventListener('click', () => {
-      progress.completed = [];
-      progress.last = 1;
-      progress.started = false;
-      progress.deaths = 0;
-      saveProgress();
-      updateMenuInfo();
-      showNotify('KAYITLAR SIFIRLANDI', 'warn');
+      resetGameProgress();
+      showNotify('KAYITLAR SIFIRLANDI // OYUN VERİSİ TEMİZLENDİ', 'warn', 3200);
       sfx('denied');
     });
   }
@@ -1349,6 +1551,12 @@
     closeTerminal();
     stopFilePoll();
     stopFinalPoll();
+    stopPuzzlePoll();
+    resetPuzzleChallenge();
+    G.fileConsole.open = false;
+    G.keypadOpen = false;
+    toggleHidden('fileConsole', true);
+    toggleHidden('keypad', true);
     releasePointer();
     refreshMeta();
     if (G.audioReady) {
@@ -1361,6 +1569,12 @@
     setText('appbarStatus', 'OPERATÖR BEKLENİYOR');
     $('statusLed')?.classList.remove('bad');
     updateMenuInfo();
+    if (G.saveCorrupt) {
+      const recovered = G.saveRecovered;
+      G.saveCorrupt = false;
+      G.saveRecovered = false;
+      showNotify(recovered ? 'KAYIT BOZUK // YEDEKTEN KURTARILDI' : 'KAYIT BOZUK // YEDEK YOK', recovered ? 'warn' : 'bad', 5200);
+    }
   }
 
   function updateMenuInfo() {
@@ -1734,9 +1948,19 @@
       btn.addEventListener('click', () => {
         const which = btn.dataset.close;
         if (which === 'finale') closeFinale();
+        else if (which === 'inventory') closeInventory();
+        else if (which === 'fileConsole') closeFileConsole();
         else closePanel();
       });
     });
+    document.querySelectorAll('[data-inv-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        sfx('click');
+        setInventoryTab(btn.dataset.invTab);
+      });
+    });
+    $('btnFcRead')?.addEventListener('click', () => readFileConsole());
+    $('btnFcWrite')?.addEventListener('click', () => writeFileConsole());
     const kp = $('keypad');
     kp?.querySelectorAll('.kp-grid button').forEach((btn) => {
       btn.addEventListener('click', () => keypadInput(btn.dataset.k));
@@ -1871,6 +2095,7 @@
     };
     stopFinalPoll();
     stopFilePoll();
+    stopPuzzlePoll();
     closeExternalWindows();
     closeTerminal();
     hideAllOverlays();
@@ -1879,6 +2104,14 @@
     applyTheme(CONTENT.THEMES[lv.theme]);
     ENGINE.setLevel(lv);
     parseWorld(lv);
+    G.checkpointTimer = 0;
+    updateCheckpoint(true);
+    if (lv.filePuzzle) prepareFilePuzzle(lv);
+    G.fileConsole = { open: false, file: '', content: '', status: '', source: '', targetDoor: null };
+    G.keypadOpen = false;
+    toggleHidden('keypad', true);
+    resetPuzzleChallenge();
+    updateFlashlightHud();
     G.allowed = lv.weapons.map((key) => WEAPONS.findIndex((w) => w.key === key)).filter((i) => i >= 0);
     if (!G.allowed.length) G.allowed = [0];
     G.weapon = G.allowed[0];
@@ -1923,8 +2156,52 @@
     G.openCells = [];
     G.usedSpawns = new Set();
     G.pickups = [];
+    G.itemPickups = [];
     G.exits = [];
     G.terminals = [];
+    G.doors = [];
+
+    // Door cells are runtime state.  Apply the saved open/closed state before
+    // scanning the map so an opened vault is walkable and a closed one blocks
+    // both the player and enemy pathing.
+    for (const def of (lv.doors || [])) {
+      if (!def || !Array.isArray(def.cells) || !def.id) continue;
+      const open = Boolean(progress.doors[def.id]);
+      const door = Object.assign({}, def, {
+        open,
+        x: 0, y: 0,
+      });
+      let cx = 0;
+      let cy = 0;
+      let n = 0;
+      for (const [dx, dy] of def.cells) {
+        if (!Number.isInteger(dx) || !Number.isInteger(dy)) continue;
+        if (dx < 0 || dy < 0 || dx >= G.mapW || dy >= G.mapH) continue;
+        const cellChar = open ? '.' : (def.file ? 'L' : 'D');
+        G.map[dy][dx] = cellChar;
+        ENGINE.setCell(dx, dy, cellChar);
+        cx += dx + 0.5;
+        cy += dy + 0.5;
+        n++;
+        if (open) G.openCells.push({ x: dx + 0.5, y: dy + 0.5 });
+      }
+      if (!n) continue;
+      door.x = cx / n;
+      door.y = cy / n;
+      G.doors.push(door);
+    }
+
+    for (const def of (lv.items || [])) {
+      if (!def || !CONTENT.ITEMS[def.id]) continue;
+      const item = CONTENT.ITEMS[def.id];
+      const takenBySave = progress.items.includes(def.id)
+        || (item.kind === 'note' && progress.notes.includes(item.note));
+      G.itemPickups.push({
+        id: def.id, x: Number(def.x) || 0, y: Number(def.y) || 0,
+        def: item, taken: takenBySave, bob: Math.random() * 6,
+      });
+    }
+
     let playerCell = null;
     const bossCells = [];
     for (let y = 0; y < G.mapH; y++) {
@@ -1953,6 +2230,236 @@
     G.projectiles = [];
     G.dataOrbs = [];
     G.touchSpawn = 0;
+    for (const id of progress.items) {
+      const def = CONTENT.ITEMS[id];
+      if (def && def.kind === 'upgrade' && def.maxHp) G.player.maxHp += def.maxHp;
+    }
+    G.player.hp = G.player.maxHp;
+  }
+
+  // --------------------------------------------------------------- items / checkpoints
+  function hasItem(id) {
+    return Boolean(id) && progress.items.includes(id);
+  }
+
+  function levelNoteAcquired(lv) {
+    if (!lv || !Array.isArray(lv.items)) return true;
+    return lv.items.some((entry) => {
+      const def = entry && CONTENT.ITEMS[entry.id];
+      return Boolean(def && def.note && progress.notes.includes(def.note));
+    });
+  }
+
+  function updateCheckpoint(force = false) {
+    if (!G.player || !G.level) return;
+    const now = performance.now();
+    if (!force && now - (G.lastCheckpointAt || 0) < 7000) return;
+    if (!force) {
+      if (!G.player.grounded || G.player.hp < G.player.maxHp * 0.35) return;
+      if (aliveEnemies().some((e) => dist(e.x, e.y, G.player.x, G.player.y) < 3.4)) return;
+    }
+    G.lastCheckpointAt = now;
+    progress.checkpoint = {
+      levelId: G.levelId,
+      x: Number(G.player.x.toFixed(2)),
+      y: Number(G.player.y.toFixed(2)),
+      angle: Number(G.player.angle.toFixed(3)),
+      at: Date.now(),
+    };
+    if (!G.debug) saveProgress();
+  }
+
+  function restoreCheckpoint() {
+    const cp = progress.checkpoint;
+    if (!cp || !G.player || cp.levelId !== G.levelId) return false;
+    if (!Number.isFinite(cp.x) || !Number.isFinite(cp.y) || isWallAt(cp.x, cp.y)) return false;
+    G.player.x = cp.x;
+    G.player.y = cp.y;
+    G.player.angle = Number.isFinite(cp.angle) ? cp.angle : G.player.angle;
+    G.player.vx = 0;
+    G.player.vy = 0;
+    G.player.z = 0;
+    G.player.vz = 0;
+    ENGINE.burst(cp.x, cp.y, 0.2, '#7ee8ff', 14, { speed: 1.2, size: 0.03, life: 0.7 });
+    return true;
+  }
+
+  function takeItemPickup(pickup) {
+    if (!pickup || pickup.taken) return;
+    const def = pickup.def || CONTENT.ITEMS[pickup.id];
+    if (!def) return;
+    pickup.taken = true;
+    let fresh = false;
+    if (!progress.items.includes(def.id)) {
+      progress.items.push(def.id);
+      fresh = true;
+    }
+    if (def.kind === 'note' && def.note && !progress.notes.includes(def.note)) {
+      progress.notes.push(def.note);
+      fresh = true;
+    }
+    if (fresh && def.kind === 'upgrade' && def.maxHp && G.player) {
+      G.player.maxHp += def.maxHp;
+      G.player.hp = Math.min(G.player.maxHp, G.player.hp + def.maxHp);
+    }
+    sfx('pickup');
+    addStyle(def.kind === 'upgrade' ? 9 : 4);
+    ENGINE.burst(pickup.x, pickup.y, 0.25, def.tint || '#b8ff5a', 20, { speed: 1.5, size: 0.035, life: 0.9 });
+    if (def.kind === 'key') {
+      showNotify(`${def.name} ALINDI // KATMAN 08 KASASI`, 'good', 4600);
+      showFeed('YETKİ KARTI ENVANTERE EKLENDİ // [I]', 'good');
+      showSubtitle('// ENVANTER', `${def.name} alındı. Kasayı açmak için kapıya yaklaş.`, 4600);
+    } else if (def.kind === 'note') {
+      showNotify(`${def.name} ALINDI // [I] NOTLAR`, '', 3800);
+      showFeed('NOT ENVANTERE EKLENDİ // [I]', '');
+    } else {
+      showNotify(`${def.name} // BÜTÜNLÜK +${def.maxHp || 0}`, 'good', 3600);
+      showFeed('KALICI BÜTÜNLÜK YÜKSELTMESİ ALINDI.', 'good');
+    }
+    saveProgress();
+  }
+
+  function updateItemPickups(dt) {
+    const p = G.player;
+    if (!p) return;
+    for (const item of G.itemPickups) {
+      if (item.taken) continue;
+      item.bob += dt * 2.1;
+      if (dist(p.x, p.y, item.x, item.y) < 0.66) takeItemPickup(item);
+    }
+  }
+
+  // --------------------------------------------------------------- doors / file puzzle
+  function doorById(id) {
+    return G.doors.find((d) => d.id === id) || null;
+  }
+
+  function syncDoorCells(door, open) {
+    if (!door || !Array.isArray(door.cells)) return;
+    const ch = open ? '.' : (door.file ? 'L' : 'D');
+    for (const [x, y] of door.cells) {
+      if (!G.map || y < 0 || x < 0 || y >= G.mapH || x >= G.mapW) continue;
+      G.map[y][x] = ch;
+      ENGINE.setCell(x, y, ch);
+      if (open && !G.openCells.some((c) => Math.floor(c.x) === x && Math.floor(c.y) === y)) {
+        G.openCells.push({ x: x + 0.5, y: y + 0.5 });
+      }
+    }
+  }
+
+  function openDoor(door, opts = {}) {
+    if (!door || door.open) return false;
+    door.open = true;
+    progress.doors[door.id] = true;
+    progress.puzzles[door.id] = true;
+    syncDoorCells(door, true);
+    sfx('unlock');
+    addShake(2.4);
+    ENGINE.burst(door.x, door.y, 0.5, '#b8ff5a', 26, { speed: 1.8, size: 0.04, life: 1.0 });
+    if (!opts.silent) {
+      showNotify(door.openText || 'KAPI AÇILDI.', 'good', 4200);
+      showFeed(door.openText || 'KAPI AÇILDI.', 'good');
+      showToast(door.openText || 'KAPI AÇILDI.');
+      if (door.id === 'level9_archive') {
+        showSubtitle('// ARŞİV KASASI', 'İçeride bir not var. Şifreyi oku. [I] ENVANTER', 6200);
+      }
+    }
+    saveProgress();
+    refreshObjective(true);
+    return true;
+  }
+
+  function doorLockReason(door) {
+    if (!door) return '';
+    if (door.file) return door.lockedText || `DOSYA KİLİDİ // ${door.file}`;
+    if (door.key && !hasItem(door.key)) return door.lockedText || 'YETKİ KARTI GEREKLİ';
+    return '';
+  }
+
+  function tryOpenDoor(door) {
+    if (!door || door.open) return;
+    if (door.file) {
+      openFileConsole(door.file, door);
+      return;
+    }
+    const reason = doorLockReason(door);
+    if (reason) {
+      sfx('denied');
+      triggerGlitch();
+      showFeed(reason, 'bad');
+      showToast(reason);
+      return;
+    }
+    openDoor(door);
+  }
+
+  function prepareFilePuzzle(lv) {
+    stopPuzzlePoll();
+    const fp = lv && lv.filePuzzle;
+    if (!fp || !fp.file) return;
+    const startPoll = () => startPuzzlePoll(lv);
+    if (window.limboOS && window.limboOS.sandboxEnsure) {
+      window.limboOS.sandboxEnsure(fp.file, fp.initial || '').then((res) => {
+        if (G.levelId !== lv.id) return;
+        if (!res || !res.ok) {
+          showFeed('DOSYA KİLİDİ HAZIRLANAMADI // SİMÜLASYON', 'warn');
+        }
+        startPoll();
+      }).catch(startPoll);
+    } else {
+      startPoll();
+    }
+  }
+
+  function startPuzzlePoll(lv) {
+    stopPuzzlePoll();
+    const fp = lv && lv.filePuzzle;
+    if (!fp) return;
+    const lid = lv.id;
+    const tick = async () => {
+      if (G.levelId !== lid || !G.level || G.level.filePuzzle !== fp) return;
+      const door = doorById(fp.door);
+      if (door && door.open) return;
+      if (!window.limboOS || !window.limboOS.sandboxRead) return;
+      try {
+        const res = await window.limboOS.sandboxRead(fp.file);
+        if (res && res.ok && String(res.content || '').includes(fp.token)) {
+          if (door) openDoor(door, { silent: false });
+        }
+      } catch (_) {}
+    };
+    tick();
+    G.puzzleTimer = setInterval(tick, 1350);
+  }
+
+  function stopPuzzlePoll() {
+    if (G.puzzleTimer) {
+      clearInterval(G.puzzleTimer);
+      G.puzzleTimer = null;
+    }
+  }
+
+  // --------------------------------------------------------------- flashlight
+  function updateFlashlightHud() {
+    const el = $('flashlightState');
+    if (el) {
+      el.textContent = G.flashlight ? 'AÇIK' : 'KAPALI';
+      el.classList.toggle('on', G.flashlight);
+    }
+    const block = $('flashlightBlock');
+    if (block) block.classList.toggle('on', G.flashlight);
+  }
+
+  function toggleFlashlight() {
+    G.flashlight = !G.flashlight;
+    updateFlashlightHud();
+    sfx(G.flashlight ? 'click' : 'denied');
+    if (G.player) {
+      ENGINE.burst(G.player.x, G.player.y, 0.45, G.flashlight ? '#ffe9b0' : '#4a5548', G.flashlight ? 14 : 6, {
+        speed: 0.9, size: 0.03, life: 0.5, gravity: 0.4,
+      });
+    }
+    showNotify(G.flashlight ? 'FENER AÇIK // F' : 'FENER KAPALI // F', '', 1600);
   }
 
   function randomOpenCell(minAway = 4, avoidOccupied = true) {
@@ -2114,6 +2621,7 @@
     if (lv.boss && G.boss) return 'YÖNETİCİ SÜRECİ HÂLÂ AKTİF.';
     if (lv.boss && !G.bossDead) return 'YÖNETİCİ SÜRECİ HÂLÂ AKTİF.';
     if (lv.filesDetail && !lv.final && G.files.remaining > 0) return `GHOST DOSYALARI SİLİNMEDEN ÇIKIŞ YOK. (${G.files.remaining} KALDI)`;
+    if (lv.filePuzzle && !levelNoteAcquired(lv)) return 'ARŞİV KASASI MÜHÜRLÜ. KASA NOTUNU BUL.';
     if (lv.terminal && !G.codeEntered) return 'SEKTÖR KİLİDİ KAPALI. YAN TERMİNALİ OKU.';
     if (lv.waves && G.wave < G.waveTotal) return 'DALGA PROTOKOLÜ AKTİF.';
     if (lv.final) return 'KÖK TERMİNALİNE BAĞLANMALISIN.';
@@ -2141,6 +2649,12 @@
     } else if (lv.filesDetail) {
       if (G.files.remaining > 0) text = `GHOST DOSYALARI SİL: ${G.files.remaining} KALDI — GEZGİN [F2]`;
       else text = 'MEZAR KAPISI AÇILDI — ÇIKIŞA ULAŞ';
+    } else if (lv.filePuzzle) {
+      const door = doorById(lv.filePuzzle.door);
+      if (door && !door.open) text = `DOSYA KİLİDİ: ${lv.filePuzzle.file} — KONSOL [F4]`;
+      else if (!levelNoteAcquired(lv)) text = 'KASADAKİ NOTU OKU — [I] ENVANTER';
+      else if (!G.codeEntered) text = 'SEKTÖR KİLİDİNİ AÇ — TERMİNALE [E]';
+      else text = 'ÇIKIŞA ULAŞ';
     } else if (lv.terminal) {
       text = G.codeEntered ? 'ÇIKIŞA ULAŞ' : 'SEKTÖR KİLİDİNİ AÇ — TERMİNALE [E]';
     } else if (lv.waves) {
@@ -2188,11 +2702,23 @@
         };
       }
     }
+    for (const door of G.doors) {
+      if (door.open) continue;
+      const d = dist(p.x, p.y, door.x, door.y);
+      if (d < bestD) {
+        bestD = d;
+        const reason = doorLockReason(door);
+        best = {
+          kind: 'door', ref: door,
+          prompt: reason || (door.file ? (door.prompt || 'DOSYA KONSOLU [F4]') : 'KASAYI AÇ [E]'),
+        };
+      }
+    }
     return best;
   }
 
   function interact() {
-    if (G.mode !== 'playing') return;
+    if (G.mode !== 'playing' || G.fileConsole.open || G.keypadOpen) return;
     const target = findInteractable();
     if (!target) return;
     if (target.kind === 'exit') {
@@ -2203,6 +2729,10 @@
         showFeed(exitLockReason(), 'bad');
         showToast(exitLockReason());
       }
+      return;
+    }
+    if (target.kind === 'door') {
+      tryOpenDoor(target.ref);
       return;
     }
     if (target.kind === 'terminal') {
@@ -2228,29 +2758,154 @@
     }).catch(() => {});
   }
 
+  const PUZZLE_SECONDS = 60;
+
+  function startPuzzleChallenge(reason, seconds = PUZZLE_SECONDS) {
+    const c = G.puzzleChallenge;
+    const kind = reason || 'file';
+    if (G.bsodActive || c.active || c.expired) return;
+    if (c.solvedReasons && c.solvedReasons[kind]) return;
+    if (!G.level) return;
+    if (kind === 'keypad' && G.codeEntered) return;
+    if (kind === 'file') {
+      if (!G.level.filePuzzle) return;
+      const fpDoor = doorById(G.level.filePuzzle.door);
+      if (fpDoor && fpDoor.open) return;
+    }
+    const total = clamp(Number(seconds) || PUZZLE_SECONDS, 1, 600);
+    c.active = true;
+    c.solved = false;
+    c.expired = false;
+    c.paused = false;
+    c.levelId = G.levelId;
+    c.reason = reason || 'file';
+    c.deadline = performance.now() + total * 1000;
+    c.remaining = total;
+    const block = $('puzzleBlock');
+    if (block) block.classList.remove('hidden');
+    updatePuzzleChallenge();
+    showNotify('PUZZLE SAYACI BAŞLADI // 60 SANİYE', 'bad', 4200);
+    showFeed('SÜRE DOLMADAN PUZZLE TAMAMLANMALI.', 'bad');
+    sfx('denied');
+  }
+
+  function stopPuzzleChallenge(solved = false) {
+    const c = G.puzzleChallenge;
+    c.active = false;
+    c.paused = false;
+    if (solved) {
+      c.solved = true;
+      if (!c.solvedReasons) c.solvedReasons = Object.create(null);
+      c.solvedReasons[c.reason] = true;
+    }
+    const block = $('puzzleBlock');
+    if (block) {
+      block.classList.add('hidden');
+      block.classList.remove('urgent');
+    }
+  }
+
+  function resetPuzzleChallenge() {
+    const c = G.puzzleChallenge;
+    c.active = false;
+    c.solved = false;
+    c.expired = false;
+    c.paused = false;
+    c.solvedReasons = Object.create(null);
+    c.remaining = PUZZLE_SECONDS;
+    c.levelId = 0;
+    c.reason = '';
+    c.deadline = 0;
+    const block = $('puzzleBlock');
+    if (block) {
+      block.classList.add('hidden');
+      block.classList.remove('urgent');
+    }
+    setText('puzzleCountdown', '01:00');
+  }
+
+  function updatePuzzleChallenge() {
+    const c = G.puzzleChallenge;
+    if (!c.active || c.paused || G.bsodActive) return;
+    const remainingMs = c.deadline - performance.now();
+    c.remaining = Math.max(0, remainingMs / 1000);
+    const total = Math.max(0, Math.ceil(c.remaining));
+    const mm = Math.floor(total / 60);
+    const ss = total % 60;
+    setText('puzzleCountdown', `${pad2(mm)}:${pad2(ss)}`);
+    setText('puzzleHint', c.reason === 'keypad' ? 'SEKTÖR KİLİDİ' : 'DOSYA KİLİDİ');
+    const block = $('puzzleBlock');
+    if (block) {
+      block.classList.remove('hidden');
+      block.classList.toggle('urgent', c.remaining <= 15);
+    }
+    if (remainingMs <= 0) triggerPuzzleBsod();
+  }
+
+  function triggerPuzzleBsod() {
+    if (G.bsodActive) return;
+    G.bsodActive = true;
+    G.puzzleChallenge.active = false;
+    G.puzzleChallenge.expired = true;
+    G.firing = false;
+    G.keys = Object.create(null);
+    G.fileConsole.open = false;
+    G.keypadOpen = false;
+    stopPuzzlePoll();
+    stopFilePoll();
+    stopFinalPoll();
+    closeExternalWindows();
+    closeTerminal();
+    releasePointer();
+    hideAllOverlays();
+    showOverlay('bsod');
+    setMode('bsod');
+    showHUD(false);
+    setText('bsodDetail', (G.level && G.level.filePuzzle && G.level.filePuzzle.file) || 'SEKTOR_09.lock');
+    try { LimboAudio.setPaused(true); } catch (_) {}
+    sfx('glitch');
+    addShake(14);
+    flushFileSave();
+    let pct = 0;
+    const bar = $('bsodBar');
+    const label = $('bsodPercent');
+    const timer = setInterval(() => {
+      pct = Math.min(100, pct + 11 + Math.floor(Math.random() * 12));
+      if (bar) bar.style.width = `${pct}%`;
+      if (label) label.textContent = String(pct);
+      if (pct >= 100) {
+        clearInterval(timer);
+        setTimeout(() => {
+          if (window.limboOS && window.limboOS.quit) window.limboOS.quit().catch(() => {});
+          else window.close();
+        }, 1200);
+      }
+    }, 380);
+  }
+
   function openKeypad() {
-    if (G.mode !== 'playing') return;
+    if (G.mode !== 'playing' || G.keypadOpen) return;
+    G.keypadOpen = true;
     G.codeBuffer = '';
-    setMode('keypad');
     hideAllOverlays();
     showOverlay('keypad');
     setText('keypadDisplay', '_ _ _ _');
     setText('keypadError', '');
     releasePointer();
+    startPuzzleChallenge('keypad');
     sfx('click');
   }
 
   function closeKeypad() {
-    if (G.mode !== 'keypad') return;
+    if (!G.keypadOpen) return;
+    G.keypadOpen = false;
     hideAllOverlays();
-    setMode('playing');
-    showHUD(true);
     requestPointer();
     sfx('click');
   }
 
   function keypadInput(key) {
-    if (G.mode !== 'keypad') return;
+    if (!G.keypadOpen) return;
     sfx('click');
     if (key === 'C') {
       G.codeBuffer = '';
@@ -2263,6 +2918,7 @@
       if (G.codeBuffer === expected) {
         G.codeEntered = true;
         G.exitOpen = true;
+        stopPuzzleChallenge(true);
         setText('keypadDisplay', expected.split('').join(' '));
         setText('keypadError', 'ERİŞİM ONAYLANDI');
         sfx('codeOk');
@@ -2278,10 +2934,9 @@
           }).catch(() => {});
         }
         setTimeout(() => {
-          if (G.mode === 'keypad') {
+          if (G.keypadOpen) {
+            G.keypadOpen = false;
             hideAllOverlays();
-            setMode('playing');
-            showHUD(true);
             unlockExit('SEKTÖR KİLİDİ AÇILDI. ÇIKIŞA ULAŞ.');
             requestPointer();
           }
@@ -2292,7 +2947,7 @@
         addShake(3);
         setText('keypadError', 'HATALI KOD // ERİŞİM REDDEDİLDİ');
         G.codeBuffer = '';
-        setTimeout(() => { if (G.mode === 'keypad') setText('keypadDisplay', '_ _ _ _'); }, 380);
+        setTimeout(() => { if (G.keypadOpen) setText('keypadDisplay', '_ _ _ _'); }, 380);
       }
       return;
     }
@@ -2301,6 +2956,325 @@
     const shown = G.codeBuffer.split('').join(' ');
     setText('keypadDisplay', shown + (G.codeBuffer.length < 4 ? ' ' + '_'.repeat(4 - G.codeBuffer.length).split('').join(' ') : ''));
     setText('keypadError', '');
+  }
+
+  // --------------------------------------------------------------- inventory / file console
+  function setInventoryTab(tab) {
+    G.inventoryTab = tab === 'notes' ? 'notes' : 'items';
+    document.querySelectorAll('[data-inv-tab]').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.invTab === G.inventoryTab);
+    });
+    $('invItems')?.classList.toggle('hidden', G.inventoryTab !== 'items');
+    $('invNotes')?.classList.toggle('hidden', G.inventoryTab !== 'notes');
+    renderInventory();
+  }
+
+  function selectInventoryItem(id) {
+    G.selectedItem = id || null;
+    const def = id && CONTENT.ITEMS[id];
+    if (def && def.note) G.selectedNote = def.note;
+    renderInventory();
+  }
+
+  function selectNote(id) {
+    G.selectedNote = id || null;
+    G.inventoryTab = 'notes';
+    renderInventory();
+    document.querySelectorAll('[data-inv-tab]').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.invTab === 'notes');
+    });
+    $('invItems')?.classList.add('hidden');
+    $('invNotes')?.classList.remove('hidden');
+  }
+
+  function renderInventory() {
+    const itemsEl = $('invItems');
+    const notesEl = $('invNotes');
+    const detail = $('invDetail');
+    if (!itemsEl || !notesEl) return;
+
+    if (G.inventoryTab === 'notes' && !progress.notes.length) G.inventoryTab = 'items';
+    const itemIds = progress.items.filter((id) => CONTENT.ITEMS[id]);
+
+    itemsEl.replaceChildren();
+    if (!itemIds.length) {
+      const empty = document.createElement('div');
+      empty.className = 'inv-empty';
+      empty.textContent = 'ENVANTER BOŞ // KATMANLARDA EŞYA ARA.';
+      itemsEl.appendChild(empty);
+    } else {
+      for (const id of itemIds) {
+        const def = CONTENT.ITEMS[id];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'inv-card' + (G.selectedItem === id ? ' active' : '');
+        const name = document.createElement('strong');
+        name.textContent = def.name;
+        const tag = document.createElement('span');
+        tag.textContent = def.tag || def.kind.toUpperCase();
+        btn.append(name, tag);
+        btn.addEventListener('click', () => selectInventoryItem(id));
+        itemsEl.appendChild(btn);
+      }
+    }
+
+    notesEl.replaceChildren();
+    if (!progress.notes.length) {
+      const empty = document.createElement('div');
+      empty.className = 'inv-empty';
+      empty.textContent = 'NOT YOK // KASALARI VE GİZLİ ODALARI ARA.';
+      notesEl.appendChild(empty);
+    } else if (G.inventoryTab === 'notes') {
+      for (const id of progress.notes) {
+        const note = CONTENT.NOTES[id];
+        if (!note) continue;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'inv-note-card' + (G.selectedNote === id ? ' active' : '');
+        const title = document.createElement('strong');
+        title.textContent = note.title;
+        const preview = document.createElement('span');
+        preview.textContent = note.body.split('\n').find((line) => line.trim()) || '';
+        btn.append(title, preview);
+        btn.addEventListener('click', () => selectNote(id));
+        notesEl.appendChild(btn);
+      }
+    }
+
+    if (!detail) return;
+    detail.replaceChildren();
+    if (G.inventoryTab === 'notes') {
+      const note = G.selectedNote && CONTENT.NOTES[G.selectedNote];
+      if (!note) {
+        detail.textContent = 'BİR NOT SEÇ.';
+        return;
+      }
+      const title = document.createElement('h3');
+      title.textContent = note.title;
+      const body = document.createElement('div');
+      body.className = 'inv-note-body';
+      body.textContent = note.body;
+      detail.append(title, body);
+      return;
+    }
+    const def = G.selectedItem && CONTENT.ITEMS[G.selectedItem];
+    if (!def) {
+      detail.textContent = 'BİR EŞYA SEÇ.';
+      return;
+    }
+    const title = document.createElement('h3');
+    title.textContent = def.name;
+    const tag = document.createElement('div');
+    tag.className = 'inv-detail-tag';
+    tag.textContent = def.tag || '';
+    const desc = document.createElement('p');
+    desc.textContent = def.desc || '';
+    detail.append(title, tag, desc);
+    if (def.kind === 'note' && def.note && CONTENT.NOTES[def.note]) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'primary-btn';
+      btn.textContent = 'NOTU OKU';
+      btn.addEventListener('click', () => selectNote(def.note));
+      detail.appendChild(btn);
+    } else if (def.kind === 'key') {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ghost-btn';
+      btn.textContent = 'KARTI GÖSTER';
+      btn.addEventListener('click', () => {
+        showNotify('KART_08 // KATMAN 08 KASASINDA KULLANILIR', '', 3000);
+        sfx('click');
+      });
+      detail.appendChild(btn);
+    } else if (def.kind === 'upgrade') {
+      const note = document.createElement('div');
+      note.className = 'inv-passive';
+      note.textContent = 'PASİF YÜKSELTME // OTOMATİK UYGULANDI';
+      detail.appendChild(note);
+    }
+  }
+
+  function openInventory() {
+    if (G.mode !== 'playing' || !G.level) return;
+    if (G.puzzleChallenge.active) {
+      showNotify('PUZZLE SÜRESİ İŞLİYOR // ENVANTER KAPALI', 'warn', 2400);
+      sfx('denied');
+      return;
+    }
+    G.firing = false;
+    G.keys = Object.create(null);
+    setMode('inventory');
+    hideAllOverlays();
+    showOverlay('inventory');
+    showHUD(false);
+    releasePointer();
+    G.selectedItem = G.selectedItem || progress.items.find((id) => CONTENT.ITEMS[id]) || null;
+    setInventoryTab(G.inventoryTab || 'items');
+    sfx('click');
+  }
+
+  function closeInventory() {
+    if (G.mode !== 'inventory') return;
+    hideAllOverlays();
+    setMode('playing');
+    showHUD(true);
+    requestPointer();
+    sfx('click');
+  }
+
+  function renderFileConsole() {
+    const fc = G.fileConsole;
+    setText('fcPath', fc.file || '---');
+    const area = $('fcContent');
+    if (area && area.value !== fc.content) area.value = fc.content;
+    setText('fcStatus', fc.status || 'HAZIR');
+    const list = $('fcList');
+    if (list) {
+      list.replaceChildren();
+      const lv = G.level;
+      const fp = lv && lv.filePuzzle;
+      if (fp) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'fc-file active';
+        const name = document.createElement('strong');
+        name.textContent = fp.file;
+        const meta = document.createElement('span');
+        meta.textContent = 'YAZILABİLİR // TOKEN GEREKLİ';
+        btn.append(name, meta);
+        btn.addEventListener('click', () => { G.fileConsole.file = fp.file; readFileConsole(); });
+        list.appendChild(btn);
+      } else {
+        list.textContent = 'BU KATMANDA DOSYA BULMACASI YOK.';
+      }
+    }
+  }
+
+  async function readFileConsole() {
+    const fc = G.fileConsole;
+    if (!fc.open || !fc.file) return;
+    const lv = G.level;
+    const fp = lv && lv.filePuzzle;
+    fc.status = 'OKUNUYOR...';
+    renderFileConsole();
+    if (!window.limboOS || !window.limboOS.sandboxRead) {
+      fc.content = fc.content || (fp && fp.initial) || '';
+      fc.status = 'SİMÜLASYON // DOSYA SİSTEMİ YOK';
+      renderFileConsole();
+      return;
+    }
+    try {
+      const res = await window.limboOS.sandboxRead(fc.file);
+      if (res && res.ok) {
+        fc.content = String(res.content || '');
+        fc.status = `OKUNDU // ${res.size} BAYT`;
+      } else {
+        fc.content = (fp && fp.initial) || '';
+        fc.status = `OKUNAMADI // ${(res && res.error) || 'BİLİNMEYEN'}`;
+      }
+    } catch (_) {
+      fc.status = 'OKUMA HATASI';
+    }
+    renderFileConsole();
+  }
+
+  async function writeFileConsole() {
+    const fc = G.fileConsole;
+    if (!fc.open || !fc.file) return;
+    const area = $('fcContent');
+    const content = area ? String(area.value || '') : String(fc.content || '');
+    const lv = G.level;
+    const fp = lv && lv.filePuzzle;
+    if (content.length > 8192) {
+      fc.status = 'YAZMA REDDEDİLDİ // İÇERİK ÇOK BÜYÜK';
+      renderFileConsole();
+      sfx('denied');
+      return;
+    }
+    fc.status = 'YAZILIYOR...';
+    renderFileConsole();
+    let ok = false;
+    let error = '';
+    if (window.limboOS && window.limboOS.sandboxWrite) {
+      try {
+        const res = await window.limboOS.sandboxWrite(fc.file, content);
+        ok = Boolean(res && res.ok);
+        error = (res && res.error) || '';
+      } catch (_) {
+        error = 'IPC_HATASI';
+      }
+    } else {
+      ok = true;
+      fc.status = 'SİMÜLASYON // YAZILDI';
+    }
+    if (!ok) {
+      fc.status = `YAZILAMADI // ${error || 'BİLİNMEYEN'}`;
+      sfx('denied');
+      renderFileConsole();
+      return;
+    }
+    fc.content = content;
+    fc.status = 'YAZILDI // DOSYA GÜNCELLENDİ';
+    renderFileConsole();
+    sfx('codeOk');
+    if (fp && content.includes(fp.token)) {
+      stopPuzzleChallenge(true);
+      const door = doorById(fp.door);
+      if (door && !door.open) {
+        openDoor(door);
+        fc.status = 'TOKEN DOĞRULANDI // KASA AÇILDI';
+        renderFileConsole();
+      }
+    } else if (fp) {
+      fc.status = 'YAZILDI // TOKEN DOĞRULANMADI';
+      renderFileConsole();
+      showNotify('DOSYA YAZILDI // TOKEN DOĞRULANMADI', 'warn', 3400);
+    }
+  }
+
+  function openFileConsole(fileName, door) {
+    if (G.mode !== 'playing' || !G.level || G.keypadOpen) return;
+    const fp = G.level.filePuzzle;
+    if (!fp) {
+      showNotify('DOSYA KONSOLU BU KATMANDA YOK', 'warn', 2600);
+      return;
+    }
+    if (G.mapOpen) toggleMap(false);
+    G.firing = false;
+    G.keys = Object.create(null);
+    G.fileConsole = {
+      open: true,
+      file: fileName || fp.file,
+      content: '',
+      status: 'DOSYA OKUNUYOR...',
+      source: 'in-game',
+      targetDoor: (door && door.id) || fp.door,
+    };
+    hideAllOverlays();
+    showOverlay('fileConsole');
+    showHUD(true);
+    releasePointer();
+    renderFileConsole();
+    readFileConsole();
+    startPuzzleChallenge('file');
+    sfx('click');
+  }
+
+  function closeFileConsole() {
+    const fc = G.fileConsole;
+    if (!fc.open) return;
+    fc.open = false;
+    hideAllOverlays();
+    requestPointer();
+    const door = doorById(fc.targetDoor);
+    if (door && !door.open) showFeed('KASA HÂLÂ MÜHÜRLÜ // DOĞRU TOKEN GEREKLİ', 'warn');
+    sfx('click');
+  }
+
+  function dismissFileConsole(hide = true) {
+    G.fileConsole.open = false;
+    if (hide) toggleHidden('fileConsole', true);
   }
 
   // --------------------------------------------------------------- file sandbox
@@ -2763,29 +3737,76 @@
   }
 
   // --------------------------------------------------------------- combat
-  function pickEnemyInRay(angle, maxDist = 40) {
-    const wall = castWall(G.player.x, G.player.y, angle, maxDist);
+  // The renderer treats `pitch` as a vertical screen offset in internal pixels
+  // (the raycaster canvas is 480x270).  Converting that offset back to a world
+  // slope makes shots follow the actual centre of the crosshair, including up
+  // and down aim, instead of always travelling on the horizontal plane.
+  const RENDER_H = 270;
+
+  function aimSlope(extra = 0) {
+    const p = G.player;
+    if (!p) return extra;
+    return clamp((p.pitch || 0) / RENDER_H + extra, -0.94, 0.94);
+  }
+
+  function playerEyeZ() {
+    const p = G.player;
+    if (!p) return 0.5;
+    return 0.5 + (p.z || 0) - (p.crouch || 0) * 0.105;
+  }
+
+  function traceShot(angle, maxDist = 40, slope = aimSlope()) {
+    const p = G.player;
+    const ox = p.x;
+    const oy = p.y;
+    const oz = playerEyeZ();
+    const wall = castWall(ox, oy, angle, maxDist);
     const c = Math.cos(angle);
     const s = Math.sin(angle);
     let best = null;
     let bestT = Infinity;
     for (const e of G.enemies) {
       if (!e || e.dead) continue;
-      const dx = e.x - G.player.x;
-      const dy = e.y - G.player.y;
-      const t = dx * c + dy * s;
-      if (t <= 0.12 || t > maxDist || t > wall + 0.1) continue;
-      const perp = Math.abs(-dx * s + dy * c);
-      const rad = e.radius + (e.boss ? 0.28 : 0.08);
-      if (perp > rad) continue;
-      const entry = t - Math.sqrt(Math.max(0, rad * rad - perp * perp));
-      if (entry > wall) continue;
-      if (entry < bestT) {
-        bestT = entry;
+      const dx = e.x - ox;
+      const dy = e.y - oy;
+      const r = e.radius + (e.boss ? 0.28 : 0.08);
+      const along = dx * c + dy * s;
+      const perp2 = dx * dx + dy * dy - along * along;
+      if (perp2 > r * r) continue;
+      const entry0 = along - Math.sqrt(Math.max(0, r * r - perp2));
+      const exit0 = along + Math.sqrt(Math.max(0, r * r - perp2));
+      if (exit0 <= 0.1) continue;
+      const tIn = Math.max(0.1, entry0);
+      const tOut = Math.min(exit0, maxDist, wall);
+      if (tOut < tIn) continue;
+      const zBase = e.z || 0;
+      const zTop = zBase + (e.height || 0.7);
+      let enter = tIn;
+      let exit = tOut;
+      if (Math.abs(slope) < 1e-5) {
+        if (oz < zBase || oz > zTop) continue;
+      } else {
+        const ta = (zBase - oz) / slope;
+        const tb = (zTop - oz) / slope;
+        enter = Math.max(tIn, Math.min(ta, tb));
+        exit = Math.min(tOut, Math.max(ta, tb));
+        if (exit < enter) continue;
+      }
+      const t = Math.max(0.1, enter);
+      if (t < bestT) {
+        bestT = t;
         best = e;
       }
     }
-    return best;
+    const hitDist = best ? bestT : wall;
+    return {
+      enemy: best, dist: hitDist, wall, angle, slope, originZ: oz,
+      z: oz + slope * hitDist,
+    };
+  }
+
+  function pickEnemyInRay(angle, maxDist = 40, slope = aimSlope()) {
+    return traceShot(angle, maxDist, slope).enemy;
   }
 
   function addStyle(amount) {
@@ -3059,12 +4080,15 @@
       G.muzzle = 1;
       sfx('shot', 'shotgun');
       addShake(3);
+      const coreSpeed = 9.2;
+      const coreSlope = aimSlope();
       G.projectiles.push({
         x: p.x + Math.cos(p.angle) * 0.52,
         y: p.y + Math.sin(p.angle) * 0.52,
-        z: p.z + 0.44,
-        vx: Math.cos(p.angle) * 9.2,
-        vy: Math.sin(p.angle) * 9.2,
+        z: playerEyeZ() + coreSlope * 0.52,
+        vx: Math.cos(p.angle) * coreSpeed,
+        vy: Math.sin(p.angle) * coreSpeed,
+        vz: coreSlope * coreSpeed,
         friendly: true, damage: 82, explodeRadius: 2.35,
         life: 2.6, radius: 0.2, color: '#c9ff8a', name: 'orb_big', age: 0,
       });
@@ -3082,6 +4106,8 @@
     const p = G.player;
     const c = Math.cos(p.angle);
     const s = Math.sin(p.angle);
+    const eye = playerEyeZ();
+    const bladePitch = Math.atan(aimSlope());
     let hits = 0;
     for (const e of G.enemies) {
       if (!e || e.dead) continue;
@@ -3091,6 +4117,9 @@
       if (d > 1.85 + e.radius) continue;
       const dot = (dx / Math.max(0.001, d)) * c + (dy / Math.max(0.001, d)) * s;
       if (dot < 0.24) continue;
+      const enemyMid = (e.z || 0) + (e.height || 0.7) * 0.5;
+      const enemyPitch = Math.atan2(enemyMid - eye, Math.max(0.25, d));
+      if (Math.abs(enemyPitch - bladePitch) > 0.72) continue;
       if (!hasLOS(p.x, p.y, e.x, e.y)) continue;
       damageEnemy(e, 34 + rand(0, 7), 'blade');
       hits++;
@@ -3099,7 +4128,7 @@
     }
     if (!hits) {
       const wd = Math.min(1.5, castWall(p.x, p.y, p.angle, 1.6));
-      ENGINE.burst(p.x + c * wd, p.y + s * wd, 0.5 + rand(0, 0.5), '#d8ffb0', 3, { speed: 0.9, size: 0.025, life: 0.35 });
+      ENGINE.burst(p.x + c * wd, p.y + s * wd, eye + aimSlope() * wd, '#d8ffb0', 3, { speed: 0.9, size: 0.025, life: 0.35 });
     }
     p.vx += c * 1.9;
     p.vy += s * 1.9;
@@ -3110,16 +4139,18 @@
     const moving = Math.hypot(p.vx, p.vy) > 1;
     const spread = (p.grounded ? 0.006 : 0.015) + (moving ? 0.008 : 0);
     const angle = p.angle + rand(-spread, spread);
-    const target = pickEnemyInRay(angle, 40);
-    if (target) {
-      damageEnemy(target, 17 + rand(0, 5), 'rifle');
-      ENGINE.burst(target.x, target.y, target.z + 0.7, '#fff6c9', 5, { speed: 1.1, size: 0.03, life: 0.35 });
+    const slope = aimSlope(rand(-spread, spread) * 0.8);
+    const shot = traceShot(angle, 40, slope);
+    G.lastShot = shot;
+    if (shot.enemy) {
+      damageEnemy(shot.enemy, 17 + rand(0, 5), 'rifle');
+      ENGINE.burst(shot.enemy.x, shot.enemy.y, shot.z, '#fff6c9', 5, { speed: 1.1, size: 0.03, life: 0.35 });
       return;
     }
-    const wd = castWall(p.x, p.y, angle, 38);
-    const hx = p.x + Math.cos(angle) * wd;
-    const hy = p.y + Math.sin(angle) * wd;
-    ENGINE.burst(hx - Math.cos(angle) * 0.06, hy - Math.sin(angle) * 0.06, rand(0.15, 1.3), '#c9b16a', 6, {
+    if (!Number.isFinite(shot.dist) || shot.dist >= 39.9) return;
+    const hx = p.x + Math.cos(angle) * shot.dist;
+    const hy = p.y + Math.sin(angle) * shot.dist;
+    ENGINE.burst(hx - Math.cos(angle) * 0.06, hy - Math.sin(angle) * 0.06, shot.z, '#c9b16a', 6, {
       speed: 1.1, size: 0.025, life: 0.4, gravity: 1.5,
     });
   }
@@ -3130,9 +4161,11 @@
     ENGINE.burst(pr.x, pr.y, pr.z, '#d7ff9d', 30, { speed: 3.2, size: 0.05, life: 0.9 });
     for (const e of G.enemies) {
       if (!e || e.dead) continue;
-      const d = dist(pr.x, pr.y, e.x, e.y);
-      if (d > pr.explodeRadius + e.radius) continue;
-      const falloff = clamp(1 - (d / (pr.explodeRadius + e.radius)) * 0.7, 0.3, 1);
+      const ez = (e.z || 0) + (e.height || 0.7) * 0.5;
+      const d = Math.hypot(pr.x - e.x, pr.y - e.y, (pr.z || 0) - ez);
+      const reach = pr.explodeRadius + e.radius + (e.height || 0.7) * 0.35;
+      if (d > reach) continue;
+      const falloff = clamp(1 - (d / reach) * 0.7, 0.3, 1);
       damageEnemy(e, pr.damage * falloff, 'core');
     }
     triggerGlitch();
@@ -3152,11 +4185,19 @@
       const steps = Math.max(1, Math.ceil((speed * dt) / 0.14));
       const sx = (pr.vx * dt) / steps;
       const sy = (pr.vy * dt) / steps;
+      const sz = ((pr.vz || 0) * dt) / steps;
       let hit = false;
       for (let s = 0; s < steps && !hit; s++) {
         pr.x += sx;
         pr.y += sy;
-        pr.z += pr.friendly ? 0 : pr.vz || 0;
+        pr.z += sz;
+        if (pr.z <= 0.04) {
+          pr.z = 0.04;
+          if (pr.friendly) explodeProjectile(pr);
+          else ENGINE.burst(pr.x, pr.y, pr.z, pr.color || '#ff7b64', 6, { speed: 1.1, size: 0.028, life: 0.35 });
+          hit = true;
+          break;
+        }
         if (isWallAt(pr.x, pr.y)) {
           if (pr.friendly) explodeProjectile(pr);
           else ENGINE.burst(pr.x, pr.y, pr.z, pr.color || '#ff7b64', 8, { speed: 1.2, size: 0.03, life: 0.4 });
@@ -3166,16 +4207,25 @@
         if (pr.friendly) {
           for (const e of G.enemies) {
             if (!e || e.dead) continue;
-            if (dist(pr.x, pr.y, e.x, e.y) < e.radius + pr.radius) {
+            const ez = e.z || 0;
+            const eh = e.height || 0.7;
+            const vertical = pr.z >= ez - pr.radius && pr.z <= ez + eh + pr.radius;
+            if (vertical && dist(pr.x, pr.y, e.x, e.y) < e.radius + pr.radius) {
               explodeProjectile(pr);
               hit = true;
               break;
             }
           }
-        } else if (dist(pr.x, pr.y, G.player.x, G.player.y) < 0.36) {
-          damagePlayer(pr.damage, { source: 'projectile' });
-          hit = true;
-          break;
+        } else {
+          const p = G.player;
+          const bodyLow = (p.z || 0) - 0.08;
+          const bodyHigh = (p.z || 0) + 1.72 - (p.crouch || 0) * 0.6;
+          const vertical = pr.z >= bodyLow && pr.z <= bodyHigh;
+          if (vertical && dist(pr.x, pr.y, p.x, p.y) < 0.36) {
+            damagePlayer(pr.damage, { source: 'projectile' });
+            hit = true;
+            break;
+          }
         }
       }
       if (hit) G.projectiles.splice(i, 1);
@@ -3185,10 +4235,16 @@
   function enemyShoot(e, angle, opts = {}) {
     const speed = opts.speed || (e.type && e.type.projectileSpeed) || 4;
     const z = opts.z != null ? opts.z : (e.z || 0) + (e.height || 0.8) * 0.55;
+    const sx = e.x + Math.cos(angle) * (e.radius + 0.12);
+    const sy = e.y + Math.sin(angle) * (e.radius + 0.12);
+    const p = G.player;
+    const targetZ = p ? (p.z || 0) + 0.5 - (p.crouch || 0) * 0.105 : 0.5;
+    const horiz = p ? Math.hypot(p.x - sx, p.y - sy) : 1;
+    const vz = clamp(((targetZ - z) / Math.max(0.4, horiz)) * speed, -speed * 0.85, speed * 0.85);
     G.projectiles.push({
-      x: e.x + Math.cos(angle) * (e.radius + 0.12),
-      y: e.y + Math.sin(angle) * (e.radius + 0.12),
-      z, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      x: sx,
+      y: sy,
+      z, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, vz,
       friendly: false, damage: opts.damage || e.damage || 10,
       life: 6.5, radius: 0.16, color: opts.color || e.color || '#ff7b64',
       name: opts.big ? 'orb_big' : 'orb', age: 0,
@@ -3392,6 +4448,13 @@
     if (G.mode !== 'playing') return;
     G.firing = false;
     G.keys = Object.create(null);
+    if (G.fileConsole.open) dismissFileConsole(true);
+    if (G.keypadOpen) { G.keypadOpen = false; toggleHidden('keypad', true); }
+    const pc = G.puzzleChallenge;
+    if (pc.active && !pc.paused) {
+      pc.remaining = Math.max(0, (pc.deadline - performance.now()) / 1000);
+      pc.paused = true;
+    }
     setMode('paused');
     releasePointer();
     showOverlay('pause');
@@ -3404,6 +4467,11 @@
 
   function resumeGame() {
     if (G.mode !== 'paused') return;
+    const pc = G.puzzleChallenge;
+    if (pc.active && pc.paused) {
+      pc.paused = false;
+      pc.deadline = performance.now() + Math.max(0, pc.remaining) * 1000;
+    }
     hideAllOverlays();
     setMode('playing');
     showHUD(true);
@@ -3623,13 +4691,14 @@
     const sliding = p.slideTimer > 0;
     const crouchHeld = Boolean(G.keys.KeyC);
     const crouching = sliding || crouchHeld || Boolean(G.keys.ControlLeft || G.keys.ControlRight);
+    const sprinting = !crouching && p.grounded && Boolean(G.keys.ShiftLeft || G.keys.ShiftRight);
     let dx = Math.cos(p.angle) * f - Math.sin(p.angle) * s;
     let dy = Math.sin(p.angle) * f + Math.cos(p.angle) * s;
     const len = Math.hypot(dx, dy);
     if (len > 0.001) {
       dx /= len;
       dy /= len;
-      const accel = (p.grounded ? 38 : 19) * (sliding ? 1.34 : crouchHeld ? 0.66 : 1);
+      const accel = (p.grounded ? 38 : 19) * (sliding ? 1.34 : crouchHeld ? 0.66 : sprinting ? 1.22 : 1);
       p.vx += dx * accel * dt;
       p.vy += dy * accel * dt;
     }
@@ -3638,7 +4707,7 @@
     p.vx *= damp;
     p.vy *= damp;
     const speed = Math.hypot(p.vx, p.vy);
-    const cap = p.dashTimer > 0 ? 12 : crouchHeld && p.grounded ? 3.35 : p.grounded ? 6.5 : 7.5;
+    const cap = p.dashTimer > 0 ? 12 : crouchHeld && p.grounded ? 3.35 : sprinting ? 9.35 : p.grounded ? 6.5 : 7.5;
     if (speed > cap) {
       p.vx = (p.vx / speed) * cap;
       p.vy = (p.vy / speed) * cap;
@@ -3826,6 +4895,18 @@
         additive: true, tint: '#b8ff5a',
       });
     }
+    for (const item of G.itemPickups) {
+      if (item.taken) continue;
+      const def = item.def || CONTENT.ITEMS[item.id] || {};
+      sprites.push({
+        x: item.x, y: item.y,
+        z: 0.14 + Math.sin(item.bob) * 0.05,
+        name: def.sprite || 'pickup', frame: 0,
+        height: def.height || 0.36,
+        additive: def.kind !== 'note',
+        tint: def.tint || '#b8ff5a',
+      });
+    }
     for (const gate of G.exits) {
       sprites.push({
         x: gate.x, y: gate.y, z: 0,
@@ -3935,7 +5016,7 @@
   function renderScene() {
     const p = G.player;
     if (!p || !G.level) return;
-    G.aimTarget = pickEnemyInRay(p.angle, 26);
+    G.aimTarget = pickEnemyInRay(p.angle, 26, aimSlope());
     applyRenderShake();
     const lowHp = p.hp <= 27;
     const blend = clamp(G.camera.blend || 0, 0, 1);
@@ -3963,6 +5044,8 @@
         bob: p.bob * (1 - blend * 0.75),
       },
       sprites: buildSprites(),
+      flashlight: G.flashlight,
+      flashlightLevel: G.flashlightLevel,
       hitboxes: G.hitboxes ? buildHitboxData() : null,
       muzzle: G.muzzle,
       power: lowHp,
@@ -4015,7 +5098,13 @@
     closeExternalWindows();
     closeTerminal();
     stopFilePoll();
+    stopPuzzlePoll();
     stopFinalPoll();
+    resetPuzzleChallenge();
+    G.fileConsole.open = false;
+    G.keypadOpen = false;
+    toggleHidden('fileConsole', true);
+    toggleHidden('keypad', true);
     releasePointer();
     showHUD(false);
     try { LimboAudio.setPaused(true); } catch (_) {}
@@ -4081,6 +5170,12 @@
     closeExternalWindows();
     closeTerminal();
     stopFilePoll();
+    stopPuzzlePoll();
+    resetPuzzleChallenge();
+    G.fileConsole.open = false;
+    G.keypadOpen = false;
+    toggleHidden('fileConsole', true);
+    toggleHidden('keypad', true);
     setMode('dead');
     releasePointer();
     showHUD(false);
@@ -4113,12 +5208,18 @@
 
   function respawn() {
     if (!G.level) return;
+    const checkpoint = progress.checkpoint && progress.checkpoint.levelId === G.level.id
+      ? Object.assign({}, progress.checkpoint) : null;
     hideAllOverlays();
     G.qte.active = false;
     toggleHidden('qtePanel', true);
     $('statusLed')?.classList.remove('bad');
     startLevelNow(G.level);
-    showNotify('YENİDEN YÜKLEME // KATMAN SIFIRLANDI', 'warn', 2600);
+    if (checkpoint) {
+      progress.checkpoint = checkpoint;
+      if (restoreCheckpoint()) saveProgress();
+    }
+    showNotify('YENİDEN YÜKLEME // KONTROL NOKTASINDAN', 'warn', 2600);
   }
 
   function restartLevel() {
@@ -4219,6 +5320,7 @@
     toggleHidden('qtePanel', true);
     stopFinalPoll();
     stopFilePoll();
+    stopPuzzlePoll();
     closeExternalWindows();
     closeTerminal();
     releasePointer();
@@ -4263,6 +5365,19 @@
   function onKeyDown(e) {
     initAudio();
 
+    const targetTag = e.target && e.target.tagName;
+    if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT') {
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        if (G.fileConsole.open) closeFileConsole();
+        else if (e.target.blur) e.target.blur();
+      } else if (e.code === 'F4' && G.fileConsole.open) {
+        e.preventDefault();
+        closeFileConsole();
+      }
+      return;
+    }
+
     if (G.kernel.active) {
       if (['Tab', 'Escape', 'Space', 'Enter'].includes(e.code)) e.preventDefault();
       return;
@@ -4277,6 +5392,7 @@
     }
 
     if (e.code === 'F2') {
+      if (G.fileConsole.open || G.keypadOpen) return;
       if (G.mode === 'finale') {
         e.preventDefault();
         openRootAnomaly();
@@ -4295,19 +5411,56 @@
       return;
     }
 
+    if (e.code === 'F4') {
+      if (G.keypadOpen) return;
+      if (G.fileConsole.open) {
+        e.preventDefault();
+        closeFileConsole();
+      } else if (G.mode === 'playing') {
+        e.preventDefault();
+        openFileConsole();
+      }
+      return;
+    }
+
     if (e.code === 'Escape') {
+      if (G.fileConsole.open) { e.preventDefault(); closeFileConsole(); return; }
+      if (G.keypadOpen) { e.preventDefault(); closeKeypad(); return; }
       if (G.mapOpen) { e.preventDefault(); toggleMap(false); return; }
       if (G.panel) { e.preventDefault(); closePanel(); return; }
+      if (G.mode === 'inventory') { e.preventDefault(); closeInventory(); return; }
       if (G.mode === 'playing') { e.preventDefault(); pauseGame(); return; }
       if (G.mode === 'paused') { e.preventDefault(); resumeGame(); return; }
-      if (G.mode === 'keypad') { e.preventDefault(); closeKeypad(); return; }
       if (G.mode === 'finale') { e.preventDefault(); closeFinale(); return; }
       if (G.mode === 'intro') { e.preventDefault(); showMenu(); return; }
       if (G.mode === 'dead') { e.preventDefault(); showMenu(); return; }
       return;
     }
 
+    if (G.keypadOpen) {
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        keypadInput(e.key);
+        return;
+      }
+      if (e.code === 'Backspace' || e.code === 'KeyC') {
+        e.preventDefault();
+        keypadInput('C');
+        return;
+      }
+      if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+        e.preventDefault();
+        keypadInput('E');
+        return;
+      }
+      if (e.code === 'KeyI' || e.code === 'Tab') {
+        e.preventDefault();
+        return;
+      }
+    }
+
     if (e.code === 'KeyT' && G.mode === 'playing') {
+      if (G.fileConsole.open || G.keypadOpen) return;
       e.preventDefault();
       if (G.mapOpen) toggleMap(false);
       setCursorMode(!G.cursorMode);
@@ -4316,7 +5469,20 @@
 
     if (G.cursorMode) return;
 
+    if (e.code === 'KeyI' && G.mode === 'playing') {
+      if (G.fileConsole.open || G.keypadOpen) return;
+      e.preventDefault();
+      openInventory();
+      return;
+    }
+
+    if (G.mode === 'inventory') {
+      if (e.code === 'KeyI') { e.preventDefault(); closeInventory(); }
+      return;
+    }
+
     if (e.code === 'Tab' && G.mode === 'playing') {
+      if (G.fileConsole.open || G.keypadOpen) return;
       e.preventDefault();
       toggleMap();
       return;
@@ -4370,19 +5536,6 @@
       }
       return;
     }
-    if (G.mode === 'keypad') {
-      if (/^[0-9]$/.test(e.key)) {
-        e.preventDefault();
-        keypadInput(e.key);
-      } else if (e.code === 'Backspace' || e.key === 'c' || e.key === 'C') {
-        e.preventDefault();
-        keypadInput('C');
-      } else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
-        e.preventDefault();
-        keypadInput('E');
-      }
-      return;
-    }
     if (G.mode === 'finale') {
       if (e.code === 'Enter') refreshFinalFiles(true);
       return;
@@ -4398,10 +5551,21 @@
 
     G.keys[e.code] = true;
     if (e.code === 'KeyE') interact();
-    else if (e.code === 'KeyF') closeOnePopup();
+    else if (e.code === 'KeyF') {
+      if (G.popups.size > 0 || (G.boss && G.takeover.active)) closeOnePopup();
+      else toggleFlashlight();
+    }
     else if (e.code === 'KeyQ') activateFreeze();
     else if (e.code === 'Space') tryJump();
-    else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') tryDash();
+    else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+      const tap = performance.now();
+      if (tap - (G.lastShiftTap || 0) < 280) {
+        G.lastShiftTap = 0;
+        tryDash();
+      } else {
+        G.lastShiftTap = tap;
+      }
+    }
     else if (e.code === 'ControlLeft' || e.code === 'ControlRight') trySlide();
     else if (e.code === 'Digit1' || e.code === 'Numpad1') switchWeapon(0);
     else if (e.code === 'Digit2' || e.code === 'Numpad2') switchWeapon(1);
@@ -4416,6 +5580,7 @@
   function onMouseMove(e) {
     if (G.mode !== 'playing' || !G.player) return;
     if (G.cursorMode || G.mapOpen || G.takeover.active || G.kernel.active) return;
+    if (G.fileConsole.open || G.keypadOpen) return;
     const locked = document.pointerLockElement === $('stage') || G.pointerLocked;
     if (!locked && !G.allowFreeAim) return;
     const dx = locked ? e.movementX || 0 : e.movementX || 0;
@@ -4431,6 +5596,7 @@
   function onMouseDown(e) {
     initAudio();
     if (G.mode !== 'playing' || G.cursorMode || G.mapOpen || G.takeover.active || G.kernel.active) return;
+    if (G.fileConsole.open || G.keypadOpen) return;
     if (e.button === 0) {
       if (!document.pointerLockElement) G.allowFreeAim = true;
       G.firing = true;
@@ -4450,6 +5616,7 @@
       return;
     }
     if (G.mode !== 'playing' || G.cursorMode) return;
+    if (G.fileConsole.open || G.keypadOpen) return;
     e.preventDefault();
     if (!G.allowed.length) return;
     const dir = e.deltaY > 0 ? 1 : -1;
@@ -4530,6 +5697,7 @@
     dtReal = Math.min(0.05, dtReal);
     G.animTime += dtReal;
     updateSystemClock();
+    updatePuzzleChallenge();
 
     if (G.mode === 'playing' && G.level && G.player) {
       G.levelTime += dtReal;
@@ -4549,7 +5717,13 @@
         updateProjectiles(dtReal * G.timeScale * (G.mapOpen ? 0.16 : 1));
         updateDataOrbs(dtReal * G.timeScale);
         updatePickups(dtReal * G.timeScale);
+        updateItemPickups(dtReal * G.timeScale);
         updateWaves(dtReal);
+        G.checkpointTimer += dtReal;
+        if (G.checkpointTimer >= 8) {
+          G.checkpointTimer = 0;
+          updateCheckpoint();
+        }
         G.mapExploreTimer += dtReal;
         if (G.mapExploreTimer >= 0.35) {
           G.mapExploreTimer = 0;
@@ -4590,6 +5764,34 @@
           }
         }
       },
+      clearEnemies() {
+        G.enemies = [];
+        G.aimTarget = null;
+      },
+      spawn(type, x, y) {
+        const e = spawnEnemy(type || 'crawler', Number(x) || G.player.x + 3, Number(y) || G.player.y, { burst: false });
+        e.spawnGrace = 0;
+        return { type: e.typeKey, x: e.x, y: e.y, z: e.z, height: e.height, radius: e.radius, hp: e.hp };
+      },
+      weapon(key) {
+        const idx = typeof key === 'number' ? key : WEAPONS.findIndex((w) => w.key === key);
+        if (idx >= 0 && idx < WEAPONS.length) {
+          G.weapon = idx;
+          G.cooldown = 0;
+          G.heat = 0;
+          G.overheat = false;
+        }
+        return { index: G.weapon, key: WEAPONS[G.weapon] && WEAPONS[G.weapon].key };
+      },
+      shoot() {
+        G.cooldown = 0;
+        fireWeapon();
+        return {
+          weapon: G.weapon,
+          aim: { slope: aimSlope(), eyeZ: playerEyeZ() },
+          lastShot: G.lastShot ? { dist: G.lastShot.dist, z: G.lastShot.z, enemy: Boolean(G.lastShot.enemy) } : null,
+        };
+      },
       warp(x, y, angle) {
         if (!G.player) return;
         G.player.x = Number(x) || G.player.x;
@@ -4600,6 +5802,16 @@
       die() { die(); },
       finale() { openFinale(); },
       keypad() { openKeypad(); },
+      fileConsole() { openFileConsole(); },
+      puzzle(seconds) { startPuzzleChallenge('file', Number(seconds) || 60); },
+      aim() {
+        return {
+          slope: aimSlope(),
+          eyeZ: playerEyeZ(),
+          target: G.aimTarget ? { x: G.aimTarget.x, y: G.aimTarget.y, z: G.aimTarget.z, hp: G.aimTarget.hp } : null,
+          lastShot: G.lastShot ? { dist: G.lastShot.dist, z: G.lastShot.z, enemy: Boolean(G.lastShot.enemy) } : null,
+        };
+      },
       qte() { startQTE(); },
       freeze() { activateFreeze(); },
       cursor(on) { G.debug = true; setCursorMode(on === undefined ? !G.cursorMode : Boolean(on), false); },
@@ -4613,13 +5825,16 @@
       spill() { maybeTriggerSpill(true); },
       wallpaper() { maybeTriggerWallpaper(true); },
       user(name) { G.meta.user = String(name || 'OPERATÖR'); setText('sideUser', G.meta.user.toUpperCase()); },
+      reset() { resetGameProgress(); },
+      progress() { return JSON.parse(JSON.stringify(progress)); },
+      save() { return savePayload(); },
       meta: G.meta,
       state: G,
     };
   }
 
-  function bootGame() {
-    loadState();
+  async function bootGame() {
+    await loadGameState();
     applySettingsUI();
     setupButtons();
     setupSettingsInputs();

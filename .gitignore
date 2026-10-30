@@ -19,3 +19,7 @@ limbo_reset.token
 *.tmp
 .DS_Store
 Thumbs.db
+
+# Local test captures and third-party reference dumps
+test-*.png
+eaglercraft*.html

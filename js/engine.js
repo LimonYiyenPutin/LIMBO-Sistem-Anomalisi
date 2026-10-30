@@ -30,6 +30,8 @@ const LimboEngine = (() => {
   let particles = [];
   let flicker = 1;
   let frameNo = 0;
+  let flashEnabled = false;
+  let flashStrength = 1;
 
   function init() {
     view = document.getElementById('view');
@@ -1173,7 +1175,22 @@ const LimboEngine = (() => {
   }
 
   function isWallCell(ch) {
-    return ch === '#' || ch === '%' || ch === '+';
+    return ch === '#' || ch === '%' || ch === '+' || ch === 'D' || ch === 'L';
+  }
+
+  function setCell(x, y, ch) {
+    const cx = Math.floor(x);
+    const cy = Math.floor(y);
+    if (!map || cx < 0 || cy < 0 || cx >= mapW || cy >= mapH) return false;
+    map[cy][cx] = ch;
+    return true;
+  }
+
+  function getCell(x, y) {
+    const cx = Math.floor(x);
+    const cy = Math.floor(y);
+    if (!map || cx < 0 || cy < 0 || cx >= mapW || cy >= mapH) return '#';
+    return map[cy][cx];
   }
 
   function setLevel(lv) {
@@ -1217,6 +1234,8 @@ const LimboEngine = (() => {
       ['orb', 1, 14, 14, drawOrb],
       ['orb_big', 1, 20, 20, drawOrbBig],
       ['pickup', 1, 18, 24, drawPickup],
+      ['keycard', 1, 24, 16, drawKeycard],
+      ['note', 1, 20, 24, drawNote],
       ['gate', 1, 56, 72, drawGate],
       ['terminal', 1, 48, 64, drawTerminal],
       ['playerbody', 2, 36, 52, drawPlayerBody],
@@ -1574,6 +1593,25 @@ const LimboEngine = (() => {
     px(x, 'rgba(255,255,255,.45)', [[5, 4, 3, 16], [10, 6, 2, 12]]);
     px(x, 'rgba(255,255,255,.9)', [[8, 7, 2, 8], [6, 9, 6, 2]]);
     px(x, 'rgba(255,255,255,.25)', [[0, 8, 18, 7], [8, 0, 2, 24]]);
+  }
+
+  function drawKeycard(x) {
+    px(x, 'rgba(0,0,0,.5)', [[1, 4, 22, 11]]);
+    px(x, '#1b2417', [[2, 3, 20, 10]]);
+    px(x, '#d7c06a', [[3, 4, 18, 8]]);
+    px(x, '#f6e6a6', [[4, 5, 16, 2]]);
+    px(x, '#3b3a2a', [[5, 9, 11, 1], [5, 11, 8, 1]]);
+    px(x, '#ffe08a', [[18, 5, 2, 2]]);
+    px(x, 'rgba(255,240,180,.55)', [[3, 12, 18, 1]]);
+  }
+
+  function drawNote(x) {
+    px(x, 'rgba(0,0,0,.55)', [[2, 3, 16, 19]]);
+    px(x, '#c9d3b7', [[3, 2, 14, 19], [4, 1, 12, 1]]);
+    px(x, '#e4ecd8', [[4, 3, 12, 17]]);
+    px(x, 'rgba(70,80,58,.75)', [[6, 6, 8, 1], [6, 9, 6, 1], [6, 12, 9, 1], [6, 15, 5, 1]]);
+    px(x, 'rgba(70,80,58,.45)', [[6, 7, 9, 1], [6, 10, 8, 1], [6, 13, 4, 1], [6, 16, 7, 1]]);
+    px(x, '#ff5a3d', [[14, 17, 2, 2]]);
   }
 
   function drawGate(x) {
@@ -2001,6 +2039,13 @@ const LimboEngine = (() => {
     return flyShade(clamp(s, 0.08, 1.55));
   }
 
+  function flashAt(camera, distance) {
+    if (!flashEnabled || flashStrength <= 0) return 0;
+    const cone = Math.max(0, 1 - Math.abs(camera) * 1.22);
+    const reach = Math.max(0, 1 - distance / 10.5);
+    return (0.08 + cone * cone * 1.05) * reach * flashStrength;
+  }
+
   function flyShade(s) {
     return s;
   }
@@ -2040,6 +2085,12 @@ const LimboEngine = (() => {
     flicker = 0.94 + noise * 0.035 + (Math.random() - 0.5) * 0.018;
     if (Math.random() < 0.0035) flicker *= 0.55;
     if (state.power) flicker *= 0.55;
+
+    // Flashlight: a narrow forward cone that brightens nearby geometry.  The
+    // raycaster works per screen column, so the cone is derived from the
+    // camera-space x coordinate of each column.
+    flashEnabled = Boolean(state.flashlight);
+    flashStrength = clamp(state.flashlightLevel == null ? 1 : state.flashlightLevel, 0, 1);
 
     updateParticles(dt);
 
@@ -2109,6 +2160,8 @@ const LimboEngine = (() => {
       let fx = posX + rowDist * rayDirX0;
       let fy = posY + rowDist * rayDirY0;
       for (let x = 0; x < W; x += 2) {
+        const cameraCol = (2 * x) / W - 1;
+        const flashLight = flashAt(cameraCol, rowDist);
         const cx = Math.floor(fx);
         const cy = Math.floor(fy);
         let tex = isFloor ? floorTex : ceilTex;
@@ -2123,7 +2176,7 @@ const LimboEngine = (() => {
         const cellLight = (cx >= 0 && cy >= 0 && cx < mapW && cy < mapH)
           ? lightGrid[cy * mapW + cx]
           : 0.65;
-        const s = shadeAt(rowDist, cellLight * extraLight, !isFloor) * (isFloor ? 1.04 : 0.72);
+        const s = shadeAt(rowDist, cellLight * extraLight, !isFloor) * (isFloor ? 1.04 : 0.72) * (1 + flashLight * 1.55);
         const tx = ((fx * 64) | 0) & 63;
         const ty = ((fy * 64) | 0) & 63;
         const c = tex[ty * 64 + tx];
@@ -2193,6 +2246,8 @@ const LimboEngine = (() => {
       let texIndex = (mapX * 11 + mapY * 7) % 3;
       if (ch === '%') texIndex = 1;
       if (ch === '+') texIndex = 2;
+      if (ch === 'D') texIndex = 1;
+      if (ch === 'L') texIndex = 2;
       const tex = wallTex[texIndex] || wallTex[0];
       let wallX = side === 0 ? posY + perp * rayDirY : posX + perp * rayDirX;
       wallX -= Math.floor(wallX);
@@ -2201,8 +2256,10 @@ const LimboEngine = (() => {
       const cellLight = (mapX >= 0 && mapY >= 0 && mapX < mapW && mapY < mapH)
         ? lightGrid[mapY * mapW + mapX]
         : 0.75;
-      let s = shadeAt(depth, cellLight, false);
+      const flashLight = flashAt(cameraX, depth);
+      let s = shadeAt(depth, cellLight, false) * (1 + flashLight * 1.9);
       if (side === 1) s *= 0.82;
+      if (ch === 'L') s *= 0.82;
       if (state.muzzle > 0 && depth < 7) s += state.muzzle * (1 - depth / 7) * 0.5;
       const step = 64 / lineH;
       let texPos = (drawStart < 0 ? -drawStart : 0) * step;
@@ -2483,6 +2540,8 @@ const LimboEngine = (() => {
     const alphaMul = it.alpha == null ? 1 : it.alpha;
     const additive = Boolean(it.additive);
     const distShade = clamp(1.18 - ty * theme.fog * 1.4, 0.14, 1.16) * (theme.light * 0.9 + 0.22) * (0.85 + flicker * 0.18);
+    const spriteFlash = flashAt(clamp(tx / Math.max(0.2, ty), -1.4, 1.4), ty);
+    const shadeMul = 1 + spriteFlash * 1.5;
     const x0 = Math.max(0, Math.floor(left));
     const x1 = Math.min(W - 1, Math.ceil(left + screenW));
     const y0 = Math.max(0, Math.floor(top));
@@ -2502,9 +2561,9 @@ const LimboEngine = (() => {
         const c = spriteData[sy * sw + sx];
         const a = c >>> 24;
         if (a < 6) continue;
-        let r = (c & 255) * distShade * tintMul[0];
-        let g = ((c >>> 8) & 255) * distShade * tintMul[1];
-        let b = ((c >>> 16) & 255) * distShade * tintMul[2];
+        let r = (c & 255) * distShade * tintMul[0] * shadeMul;
+        let g = ((c >>> 8) & 255) * distShade * tintMul[1] * shadeMul;
+        let b = ((c >>> 16) & 255) * distShade * tintMul[2] * shadeMul;
         if (flash > 0.01) {
           r += (255 - r) * flash;
           g += (245 - g) * flash;
@@ -2599,6 +2658,8 @@ const LimboEngine = (() => {
   return {
     init,
     setLevel,
+    setCell,
+    getCell,
     render: (state) => render(state),
     renderWeapon: (state) => renderWeapon(state),
     burst,

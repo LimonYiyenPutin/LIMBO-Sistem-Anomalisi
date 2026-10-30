@@ -27,9 +27,16 @@ contextBridge.exposeInMainWorld('limboOS', {
   sandboxPrepare: (files) => ipcRenderer.invoke('sandbox:prepare', files),
   sandboxStatus: (names) => ipcRenderer.invoke('sandbox:status', names),
   sandboxClear: (names) => ipcRenderer.invoke('sandbox:clear', names),
+  sandboxRead: (name) => ipcRenderer.invoke('sandbox:read', name),
+  sandboxWrite: (name, content) => ipcRenderer.invoke('sandbox:write', name, content),
+  sandboxEnsure: (name, content) => ipcRenderer.invoke('sandbox:ensure', name, content),
   sandboxList: () => ipcRenderer.invoke('sandbox:list'),
   sandboxPath: () => ipcRenderer.invoke('sandbox:path'),
   openSandbox: (fileName) => ipcRenderer.invoke('sandbox:open', fileName),
+
+  loadSave: () => ipcRenderer.invoke('save:load'),
+  writeSave: (data) => ipcRenderer.invoke('save:write', data),
+  clearSave: () => ipcRenderer.invoke('save:clear'),
 
   metaInfo: () => ipcRenderer.invoke('meta:info'),
   metaState: () => ipcRenderer.invoke('meta:state'),

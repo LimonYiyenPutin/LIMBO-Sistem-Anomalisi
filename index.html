@@ -56,6 +56,14 @@
               <div class="hud-label"><span>ATILMA</span><span class="hud-mini">DASH</span></div>
               <div class="dash-line"><div id="dashPips"></div><span id="dashState">HAZIR</span></div>
             </div>
+            <div class="hud-block tool-block" id="flashlightBlock">
+              <div class="hud-label"><span>FENER</span><span class="hud-mini">LIGHT</span></div>
+              <div class="tool-line"><span id="flashlightState">KAPALI</span></div>
+            </div>
+            <div class="hud-block puzzle-block hidden" id="puzzleBlock">
+              <div class="hud-label"><span>PUZZLE</span><span class="hud-mini">SÜRE</span></div>
+              <div class="puzzle-line"><span id="puzzleCountdown">01:00</span><span id="puzzleHint">DOSYA KİLİDİ</span></div>
+            </div>
           </div>
 
           <div class="hud-top">
@@ -100,7 +108,7 @@
           <div id="reticleRing" aria-hidden="true"></div>
 
           <div class="hud-footer">
-            <span>WASD HAREKET</span><span>SHIFT ATILMA</span><span>C EĞİL</span><span>T FARE MODU</span><span>V KAMERA</span><span>TAB HARİTA</span><span>E ETKİLEŞİM</span><span>F3 HITBOX</span><span>ESC DURAKLAT</span>
+            <span>WASD HAREKET</span><span>SHIFT KOŞ</span><span>ÇİFT SHIFT ATILMA</span><span>C EĞİL</span><span>F FENER</span><span>I ENVANTER</span><span>F4 DOSYA KONSOLU</span><span>T FARE MODU</span><span>V KAMERA</span><span>TAB HARİTA</span><span>E ETKİLEŞİM</span><span>ESC DURAKLAT</span>
           </div>
           <div id="cursorModeBanner" class="cursor-mode-banner hidden">FARE MODU // PENCERELER AKTİF <b>T</b> İLE NİŞAN AL</div>
           <div id="cameraBadge" class="camera-badge hidden">3. ŞAHIS</div>
@@ -236,7 +244,7 @@
               <div class="side-quote">“AŞAĞIDA IŞIK YOK.<br>SADECE SENİN İÇİN AÇIK BIRAKILMIŞ BİR KAPI VAR.”</div>
             </aside>
           </div>
-          <div class="menu-foot"><span>WASD / MOUSE / SHIFT / C / T / V / TAB / E / F / F3</span><span>KULAKLIK ÖNERİLİR</span><span id="osBadge">LINUX // ELECTRON</span></div>
+          <div class="menu-foot"><span>WASD / MOUSE / SHIFT / C / F / I / F4 / T / V / TAB / E / F3</span><span>KULAKLIK ÖNERİLİR</span><span id="osBadge">LINUX // ELECTRON</span></div>
         </section>
 
         <!-- SETTINGS -->
@@ -332,7 +340,7 @@
             <div class="kp-body">
               <div class="kp-head"><span>SEKTÖR KİLİDİ</span><span class="kp-led"></span></div>
               <div class="kp-display" id="keypadDisplay">_ _ _ _</div>
-              <div class="kp-hint">KODU YAN TERMİNAL PENCERESİNDEN OKU.</div>
+              <div class="kp-hint">KODU YAN TERMİNAL PENCERESİNDEN OKU. // WASD İLE HAREKET EDEBİLİRSİN.</div>
               <div class="kp-grid">
                 <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
                 <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
@@ -340,6 +348,51 @@
                 <button data-k="C" class="alt">C</button><button data-k="0">0</button><button data-k="E" class="alt">↵</button>
               </div>
               <div class="kp-foot"><span id="keypadError"></span><span>ESC İPTAL</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- INVENTORY / NOTES -->
+        <section id="inventory" class="overlay panel-overlay inventory-overlay hidden">
+          <div class="panel wide inv-panel">
+            <div class="panel-head"><span class="panel-kicker">OPERATÖR://ENVANTER</span><h2>ENVANTER &amp; NOTLAR</h2><button class="panel-close" data-close="inventory">×</button></div>
+            <div class="inv-tabs">
+              <button type="button" data-inv-tab="items" class="active">EŞYALAR</button>
+              <button type="button" data-inv-tab="notes">NOTLAR</button>
+            </div>
+            <div class="inv-layout">
+              <div class="inv-list-wrap">
+                <div id="invItems" class="inv-grid"></div>
+                <div id="invNotes" class="inv-notes hidden"></div>
+              </div>
+              <div id="invDetail" class="inv-detail">BİR EŞYA SEÇ.</div>
+            </div>
+            <div class="panel-note">YETKİ KARTLARI KİLİTLİ KAPILARDA OTOMATİK KULLANILIR. NOTLAR KASA VE GİZLİ ODALARDAN ÇIKAR.</div>
+            <div class="panel-actions"><button class="ghost-btn" data-close="inventory">KAPAT [I]</button></div>
+          </div>
+        </section>
+
+        <!-- IN-GAME FILE CONSOLE -->
+        <section id="fileConsole" class="overlay panel-overlay file-console-overlay hidden">
+          <div class="panel wide fc-panel">
+            <div class="panel-head"><span class="panel-kicker">LIMBO_SANDBOX://RW</span><h2>DOSYA KONSOLU</h2><button class="panel-close" data-close="fileConsole">×</button></div>
+            <div class="fc-layout">
+              <div class="fc-side">
+                <div class="fc-side-head">SANDBOX DOSYALARI</div>
+                <div id="fcList" class="fc-list"></div>
+                <div class="fc-warning">YALNIZCA OYUNUN SANDBOX KLASÖRÜ. MUTLAK YOL, <span class="mono">..</span> VE SİMGE BAĞLANTILARI REDDEDİLİR.</div>
+              </div>
+              <div class="fc-editor">
+                <div class="fc-move-hint">KONSOL AÇIKKEN WASD İLE HAREKET EDEBİLİRSİN. YAZMAK İÇİN METİN ALANINA TIKLA.</div>
+                <div class="fc-path" id="fcPath">SEKTOR_09.lock</div>
+                <textarea id="fcContent" spellcheck="false" aria-label="Dosya içeriği"></textarea>
+                <div id="fcStatus" class="fc-status">HAZIR</div>
+                <div class="panel-actions">
+                  <button id="btnFcRead" class="ghost-btn" type="button">OKU</button>
+                  <button id="btnFcWrite" class="primary-btn" type="button">YAZ</button>
+                  <button class="ghost-btn" data-close="fileConsole" type="button">KAPAT [F4]</button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -359,6 +412,18 @@
               <button id="btnRefreshFiles" class="ghost-btn">DURUMU KONTROL ET</button>
             </div>
             <div class="finale-status" id="finaleStatus">DOSYA BEKLENİYOR...</div>
+          </div>
+        </section>
+
+        <!-- FAKE BSOD -->
+        <section id="bsod" class="overlay bsod-overlay hidden">
+          <div class="bsod-screen">
+            <div class="bsod-face">:(</div>
+            <div class="bsod-main">SİSTEMİNİZDE BİR SORUN OLUŞTU VE YENİDEN BAŞLATILMASI GEREKİYOR.</div>
+            <div class="bsod-sub">HATA BİLGİLERİ TOPLANIYOR // <span id="bsodPercent">0</span>%</div>
+            <div class="bsod-bar"><i id="bsodBar"></i></div>
+            <div class="bsod-code">DURDURMA KODU: LIMBO_PUZZLE_TIMEOUT<br>BAŞARISIZ İŞLEM: <span id="bsodDetail">SEKTOR_09.lock</span></div>
+            <div class="bsod-foot">LIMBO_SISTEM_ANOMALISI // 0x0000004C<br>Bu ekranı kapatmayın. Zaten kapanacak.</div>
           </div>
         </section>
 
