@@ -127,9 +127,10 @@ uygulama kapanır. Doğru dosya token'ı veya terminal kodu girildiğinde sayaç
 ### 3B nişan
 
 Silahlar artık ekranın tam merkezindeki nişan doğrultusunda ateş eder. Yukarı veya
-aşağı baktığında merminin yüksekliği de değişir; düşmanın gövde kutusuna denk
-gelmeyen atışlar hasar vermez. Çekirdek makinesinin enerji küresi de aynı eğimle
-ilerler ve patlama mesafesi üç boyutlu hesaplanır.
+aşağı baktığında merminin yüksekliği de değişir; yürüyüş salınımı ve zıplama
+yüksekliği de nişan çizgisine dahil edilir. Düşmanın gövde kutusuna denk gelmeyen
+atışlar hasar vermez. Çekirdek makinesinin enerji küresi de aynı eğimle ilerler ve
+patlama mesafesi üç boyutlu hesaplanır.
 
 ## Akış
 

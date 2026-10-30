@@ -3737,22 +3737,23 @@
   }
 
   // --------------------------------------------------------------- combat
-  // The renderer treats `pitch` as a vertical screen offset in internal pixels
-  // (the raycaster canvas is 480x270).  Converting that offset back to a world
-  // slope makes shots follow the actual centre of the crosshair, including up
-  // and down aim, instead of always travelling on the horizontal plane.
+  // The renderer composes the horizon from pitch, walking bob and the jump
+  // height (all expressed as screen-pixel offsets on the 480x270 canvas).
+  // Converting that offset back to a world slope makes shots follow the actual
+  // centre of the crosshair, including up/down aim and airborne shots, instead
+  // of always travelling on the horizontal plane.  The projection's centre
+  // line starts at world height 0.5, so the same origin is used here.
   const RENDER_H = 270;
 
   function aimSlope(extra = 0) {
     const p = G.player;
     if (!p) return extra;
-    return clamp((p.pitch || 0) / RENDER_H + extra, -0.94, 0.94);
+    const screenOffset = (p.pitch || 0) + (p.bob || 0) + (p.z || 0) * RENDER_H * 0.72;
+    return clamp(screenOffset / RENDER_H + extra, -0.94, 0.94);
   }
 
   function playerEyeZ() {
-    const p = G.player;
-    if (!p) return 0.5;
-    return 0.5 + (p.z || 0) - (p.crouch || 0) * 0.105;
+    return 0.5;
   }
 
   function traceShot(angle, maxDist = 40, slope = aimSlope()) {
@@ -4107,7 +4108,7 @@
     const c = Math.cos(p.angle);
     const s = Math.sin(p.angle);
     const eye = playerEyeZ();
-    const bladePitch = Math.atan(aimSlope());
+    const slope = aimSlope();
     let hits = 0;
     for (const e of G.enemies) {
       if (!e || e.dead) continue;
@@ -4117,9 +4118,12 @@
       if (d > 1.85 + e.radius) continue;
       const dot = (dx / Math.max(0.001, d)) * c + (dy / Math.max(0.001, d)) * s;
       if (dot < 0.24) continue;
-      const enemyMid = (e.z || 0) + (e.height || 0.7) * 0.5;
-      const enemyPitch = Math.atan2(enemyMid - eye, Math.max(0.25, d));
-      if (Math.abs(enemyPitch - bladePitch) > 0.72) continue;
+      // Check the crosshair line against the enemy's vertical extent instead
+      // of using a flat 2D cone, so looking far up/down really misses.
+      const lineZ = eye + slope * d;
+      const low = (e.z || 0) - 0.3;
+      const high = (e.z || 0) + (e.height || 0.7) + 0.3;
+      if (lineZ < low || lineZ > high) continue;
       if (!hasLOS(p.x, p.y, e.x, e.y)) continue;
       damageEnemy(e, 34 + rand(0, 7), 'blade');
       hits++;
@@ -4128,7 +4132,7 @@
     }
     if (!hits) {
       const wd = Math.min(1.5, castWall(p.x, p.y, p.angle, 1.6));
-      ENGINE.burst(p.x + c * wd, p.y + s * wd, eye + aimSlope() * wd, '#d8ffb0', 3, { speed: 0.9, size: 0.025, life: 0.35 });
+      ENGINE.burst(p.x + c * wd, p.y + s * wd, eye + slope * wd, '#d8ffb0', 3, { speed: 0.9, size: 0.025, life: 0.35 });
     }
     p.vx += c * 1.9;
     p.vy += s * 1.9;
