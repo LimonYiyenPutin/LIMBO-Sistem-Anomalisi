@@ -21,6 +21,9 @@
     "appId": "com.limbo.sistemanomalisi",
     "productName": "LIMBO - Sistem Anomalisi",
     "asar": true,
+    "asarUnpack": [
+      "assets/music/**/*"
+    ],
     "compression": "normal",
     "directories": {
       "output": "dist"

@@ -46,6 +46,49 @@ masaüstünü değiştirmez; oyun içi görsel simülasyon olarak çalışır.
 > link" hatası alırsan Windows **Geliştirici Modu**'nu aç veya terminali yönetici
 > olarak çalıştır. Hazır kurulum/portable dosyaları bu adımı gerektirmez.
 
+## Müzik ve ses
+
+Oyunun müzik katmanı, `assets/music/` altındaki 22 lisanslı MP3 parçadan oluşur.
+Parçalar oyun durumuna göre seçilir; aynı anda yalnızca bir ana müzik çalar,
+kategori geçişlerinde iki kanal kısa süre çapraz soluklaşır.
+
+| Kategori | Oyun durumu | Parça |
+|---|---|---:|
+| Ana Menü | Menü, arşiv, ayarlar | 2 |
+| Keşif | Sakin katmanlar, koridorlar | 3 |
+| Tesis | Debug/core/root temaları | 2 |
+| Gizem | Gölge, mezarlık, bellek, dizin temaları | 2 |
+| Gerilim | Yakındaki düşman, düşük sağlık | 3 |
+| Kovalamaca | Üç veya daha fazla yakın tehdit | 3 |
+| Süreli Bulmaca | QTE ve süreli dosya/kilit bulmacaları | 2 |
+| Boss / Büyük Olay | Yönetici dövüşleri ve final katmanı | 3 |
+| Final / Jenerik | Sahte final, gerçek final, jenerik | 2 |
+
+- Kategori geçiş süreleri 1,6–4,0 saniye arasındadır; ani kesme yapılmaz.
+- Parça bitmeden önce aynı kategorideki başka bir parçaya çapraz geçiş yapılır.
+  Aynı parça art arda seçilmez.
+- Oyun duraklatıldığında müzik kısa bir fade ile kısılır ve duraklar; devam
+  edildiğinde kaldığı saniyeden sürer.
+- Kullanılmayan kanalın `src` değeri temizlenir; iki `HTMLAudioElement` dışında
+  müzik bellekte tutulmaz.
+- Prosedürel Web Audio motoru SFX ve ortam katmanı için korunmuştur. Dosya
+  müziği çalınamazsa motor otomatik olarak prosedürel müziğe döner.
+
+Ses seviyeleri **ANA SES**, **MÜZİK**, **ORTAM SESİ** ve **EFEKT / SİLAH SESİ**
+olarak ayrıdır. **TÜM SESLERİ SUSTUR** ana ses, müzik, ortam ve efektleri birlikte
+kapatır. Bu değerler kayıt dosyasına yazılır ve yeniden açılışta korunur.
+
+### Müzik lisansı
+
+- Kaynak: [Nihonichi Free BGM](https://nihonichi-bgm.com/)
+- Lisans: [Nihonichi Free BGM Commercial Use License](https://nihonichi-bgm.com/en/commercial-music-license/)
+- Ticari projelerde ve oyunlarda kullanım serbesttir; atıf zorunlu değildir.
+- Ses dosyalarının tek başına yeniden dağıtımı veya satışı yasaktır. Bu MP3
+  dosyaları yalnızca oyunun paketlenmiş bir parçası olarak dağıtılabilir.
+- Dosya adı, kaynak sayfası, indirme URL'si, sanatçı, lisans, süre ve SHA-256
+  bilgileri `assets/music/manifest.json` içinde tutulur.
+- İndirilmemiş veya lisansı belirsiz hiçbir parça kataloğa eklenmemiştir.
+
 ## Çalıştırma
 
 ### Tek dosya (önerilen)
@@ -315,13 +358,15 @@ start.bat --shot=limbo.png --wait=2600
 `--call` ile yüklenir. Metotlar: `start`, `menu`, `killAll`, `warp`, `complete`,
 `die`, `finale`, `keypad`, `qte`, `freeze`, `cursor`, `map`, `camera`,
 `takeover`, `hazard`, `kernel`, `gpu`, `spill`, `wallpaper`, `user`, `hitboxes`,
-`meta`, `state`.
+`music`, `musicState`, `musicSeek`, `audioVolumes`, `pause`, `resume`,
+`settingsPanel`, `fakeEnding`, `meta`, `state`.
 
 ## Teknik notlar
 
 - Çözünürlük: dahili `480x270` Canvas 2D raycaster, sahne ölçeğinde büyütülür.
-- Tüm dokular, sprite'lar, müzik ve ses efektleri prosedürel olarak üretilir.
-  Sürekli fan/disk/statik donanım katmanı ve katman başına müzik stili vardır.
+- SFX ve ortam katmanı prosedürel Web Audio ile üretilir. Ana müzik
+  `assets/music/` altındaki lisanslı MP3 dosyalarından, iki `HTMLAudioElement`
+  kanalı ve çapraz soluklaşma ile çalınır. Ayrıntılar: `assets/music/README.md`.
 - Yazı tipi yerel `assets/fonts/vt323-*.woff2` dosyalarından gelir; internet
   gerekmez.
 - Kayıtlar `limbo_progress_v3`, ayarlar `limbo_settings_v3` anahtarlarında

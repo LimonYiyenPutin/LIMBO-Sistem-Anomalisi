@@ -145,6 +145,7 @@
     lastHud: 0,
     lastFrame: 0,
     noiseAcc: 0,
+    lastDamageAt: 0,
     whisperTimer: 18,
     ambientGlitch: 28,
     shake: 0,
@@ -230,6 +231,10 @@
   const settings = {
     sens: 1,
     volume: 70,
+    musicVolume: 70,
+    sfxVolume: 85,
+    ambienceVolume: 55,
+    muted: false,
     popups: 2,
     crt: true,
     shake: true,
@@ -248,6 +253,13 @@
     doors: {},
     puzzles: {},
     checkpoint: null,
+  };
+  const musicDirector = {
+    category: null,
+    priority: -1,
+    since: 0,
+    lastRefresh: 0,
+    reason: '',
   };
 
   // --------------------------------------------------------------- utilities
@@ -476,10 +488,17 @@
 
   function applySettingsData(s) {
     if (!s || typeof s !== 'object' || Array.isArray(s)) return;
-    settings.sens = clamp(Number(s.sens) || 1, 0.25, 2.5);
-    settings.volume = clamp(Number(s.volume) || 70, 0, 100);
-    settings.popups = clamp(Number(s.popups), 0, 2);
-    if (!Number.isFinite(settings.popups)) settings.popups = 2;
+    const num = (value, fallback, lo, hi) => {
+      const n = Number(value);
+      return Number.isFinite(n) ? clamp(n, lo, hi) : fallback;
+    };
+    settings.sens = num(s.sens, 1, 0.25, 2.5);
+    settings.volume = num(s.volume, 70, 0, 100);
+    settings.musicVolume = num(s.musicVolume, 70, 0, 100);
+    settings.sfxVolume = num(s.sfxVolume, 85, 0, 100);
+    settings.ambienceVolume = num(s.ambienceVolume, 55, 0, 100);
+    settings.muted = Boolean(s.muted);
+    settings.popups = num(s.popups, 2, 0, 2);
     settings.crt = s.crt !== false;
     settings.shake = s.shake !== false;
     settings.fullscreen = Boolean(s.fullscreen);
@@ -515,6 +534,10 @@
       settings: {
         sens: settings.sens,
         volume: settings.volume,
+        musicVolume: settings.musicVolume,
+        sfxVolume: settings.sfxVolume,
+        ambienceVolume: settings.ambienceVolume,
+        muted: settings.muted,
         popups: settings.popups,
         crt: settings.crt,
         shake: settings.shake,
@@ -1365,7 +1388,10 @@
       LimboAudio.init();
       G.audioReady = true;
       LimboAudio.setVolume(settings.volume / 100);
-      LimboAudio.setMuted(false);
+      LimboAudio.setMusicVolume(settings.musicVolume / 100);
+      LimboAudio.setSfxVolume(settings.sfxVolume / 100);
+      LimboAudio.setAmbienceVolume(settings.ambienceVolume / 100);
+      LimboAudio.setMuted(settings.muted);
     } catch (_) {}
   }
   function sfx(name, arg) {
@@ -1373,6 +1399,139 @@
       if (G.audioReady) LimboAudio.play(name, arg);
     } catch (_) {}
   }
+
+  // --------------------------------------------------------------- music director
+  // The file-based layer is selected from the current game state. Priorities
+  // keep short events (QTE, boss, ending) above the level's ambient bed.
+  const MUSIC_PRIORITY = {
+    menu: 10,
+    exploration: 20,
+    facility: 20,
+    mystery: 22,
+    suspense: 50,
+    chase: 60,
+    timed: 70,
+    boss: 90,
+    ending: 100,
+  };
+
+  function musicBaseForLevel(lv) {
+    if (!lv) return 'exploration';
+    if (lv.final) return 'boss';
+    switch (lv.theme) {
+      case 'debug':
+      case 'core':
+      case 'root':
+        return 'facility';
+      case 'shadow':
+      case 'fakeexit':
+      case 'graveyard':
+      case 'memory':
+      case 'directory':
+      case 'mirror':
+      case 'zero':
+      case 'gate':
+        return 'mystery';
+      default:
+        return 'exploration';
+    }
+  }
+
+  function applyMusicCategory(category, priority, reason) {
+    if (!G.audioReady || !category) return;
+    musicDirector.category = category;
+    musicDirector.priority = priority;
+    musicDirector.reason = reason;
+    musicDirector.since = performance.now();
+    try { LimboAudio.playMusic(category); } catch (_) {}
+  }
+
+  function refreshMusicDirector(force = false) {
+    if (!G.audioReady) return;
+    const now = performance.now();
+    if (!force && now - musicDirector.lastRefresh < 900) return;
+    musicDirector.lastRefresh = now;
+
+    let category = null;
+    let priority = 0;
+    let reason = '';
+
+    if (G.mode === 'menu') {
+      category = 'menu';
+      priority = MUSIC_PRIORITY.menu;
+      reason = 'main-menu';
+    } else if (G.mode === 'ending') {
+      category = 'ending';
+      priority = MUSIC_PRIORITY.ending;
+      reason = 'ending';
+    } else if (G.mode === 'playing' || G.mode === 'paused' || G.mode === 'finale') {
+      const lv = G.level;
+      category = musicBaseForLevel(lv);
+      priority = MUSIC_PRIORITY[category] || 20;
+      reason = 'level-base';
+      if (lv && lv.final && G.mode !== 'paused') {
+        category = 'boss';
+        priority = 85;
+        reason = 'final-level';
+      }
+      const player = G.player;
+      const hpRatio = player && player.maxHp ? player.hp / player.maxHp : 1;
+      let closeThreats = 0;
+      if (G.mode === 'playing' && player && Array.isArray(G.enemies)) {
+        for (const e of G.enemies) {
+          if (!e || e.dead || e.spawnGrace > 0) continue;
+          const d = Math.hypot(player.x - e.x, player.y - e.y);
+          if (d <= (e.boss ? 11 : 5.5) && hasLOS(e.x, e.y, player.x, player.y)) closeThreats++;
+        }
+      }
+      const recentlyHurt = G.lastDamageAt > 0 && now - G.lastDamageAt < 6000;
+      // Let the level's base theme breathe for a few seconds before threat
+      // music takes over; a fresh hit always overrides this grace window.
+      const introGrace = G.mode === 'playing' && G.levelTime < 8 && !recentlyHurt;
+      if (G.boss && !G.bossDead) {
+        category = 'boss';
+        priority = MUSIC_PRIORITY.boss;
+        reason = 'boss-fight';
+      } else if (G.finale.active && G.mode !== 'paused') {
+        category = 'boss';
+        priority = 88;
+        reason = 'finale';
+      } else if (G.puzzleChallenge && G.puzzleChallenge.active && G.mode === 'playing') {
+        category = 'timed';
+        priority = MUSIC_PRIORITY.timed;
+        reason = 'timed-puzzle';
+      } else if (G.qte.active && G.mode === 'playing') {
+        category = 'timed';
+        priority = MUSIC_PRIORITY.timed;
+        reason = 'qte';
+      } else if (!introGrace && G.mode === 'playing' && (closeThreats >= 3 || (closeThreats >= 2 && (hpRatio <= 0.5 || recentlyHurt)))) {
+        category = 'chase';
+        priority = MUSIC_PRIORITY.chase;
+        reason = 'close-combat';
+      } else if (!introGrace && G.mode === 'playing' && (closeThreats >= 1 || hpRatio <= 0.34 || recentlyHurt)) {
+        category = 'suspense';
+        priority = MUSIC_PRIORITY.suspense;
+        reason = 'danger-nearby';
+      } else if (G.mode === 'paused') {
+        category = musicDirector.category || category;
+        priority = musicDirector.priority || priority;
+        reason = 'paused-hold';
+      }
+    } else {
+      return;
+    }
+
+    if (!category) return;
+    if (category === musicDirector.category) {
+      musicDirector.priority = priority;
+      musicDirector.reason = reason;
+      return;
+    }
+    const dwell = now - musicDirector.since;
+    if (!force && priority <= musicDirector.priority && dwell < 12000) return;
+    applyMusicCategory(category, priority, reason);
+  }
+
   function startLevelMusic(lv) {
     if (!G.audioReady) return;
     const theme = CONTENT.THEMES[lv.theme] || CONTENT.THEMES.awakening;
@@ -1381,6 +1540,7 @@
       LimboAudio.setCombat(0);
       LimboAudio.startMusic(theme.ambient, theme.pattern);
     } catch (_) {}
+    refreshMusicDirector(true);
   }
 
   // --------------------------------------------------------------- settings / boot / menu
@@ -1388,12 +1548,21 @@
     document.body.classList.toggle('no-crt', !settings.crt);
     setText('sensValue', settings.sens.toFixed(2));
     setText('volValue', String(Math.round(settings.volume)));
+    setText('musicVolValue', String(Math.round(settings.musicVolume)));
+    setText('sfxVolValue', String(Math.round(settings.sfxVolume)));
+    setText('ambVolValue', String(Math.round(settings.ambienceVolume)));
     setText('popValue', settings.popups === 0 ? 'KAPALI' : settings.popups === 1 ? 'DÜŞÜK' : 'NORMAL');
     const sens = $('sensRange');
     const vol = $('volRange');
+    const musicVol = $('musicVolRange');
+    const sfxVol = $('sfxVolRange');
+    const ambVol = $('ambVolRange');
     const pop = $('popRange');
     if (sens) sens.value = String(settings.sens);
     if (vol) vol.value = String(settings.volume);
+    if (musicVol) musicVol.value = String(settings.musicVolume);
+    if (sfxVol) sfxVol.value = String(settings.sfxVolume);
+    if (ambVol) ambVol.value = String(settings.ambienceVolume);
     if (pop) pop.value = String(settings.popups);
     const crt = $('crtToggle');
     const shake = $('shakeToggle');
@@ -1401,20 +1570,31 @@
     const spill = $('spillToggle');
     const wallpaper = $('wallpaperToggle');
     const takeover = $('takeoverToggle');
+    const mute = $('muteToggle');
     if (crt) crt.checked = settings.crt;
     if (shake) shake.checked = settings.shake;
     if (fs) fs.checked = settings.fullscreen;
     if (spill) spill.checked = settings.spill;
     if (wallpaper) wallpaper.checked = settings.wallpaper;
     if (takeover) takeover.checked = settings.takeover;
+    if (mute) mute.checked = settings.muted;
     if (G.audioReady) {
-      try { LimboAudio.setVolume(settings.volume / 100); } catch (_) {}
+      try {
+        LimboAudio.setVolume(settings.volume / 100);
+        LimboAudio.setMusicVolume(settings.musicVolume / 100);
+        LimboAudio.setSfxVolume(settings.sfxVolume / 100);
+        LimboAudio.setAmbienceVolume(settings.ambienceVolume / 100);
+        LimboAudio.setMuted(settings.muted);
+      } catch (_) {}
     }
   }
 
   function setupSettingsInputs() {
     const sens = $('sensRange');
     const vol = $('volRange');
+    const musicVol = $('musicVolRange');
+    const sfxVol = $('sfxVolRange');
+    const ambVol = $('ambVolRange');
     const pop = $('popRange');
     const crt = $('crtToggle');
     const shake = $('shakeToggle');
@@ -1422,6 +1602,7 @@
     const spill = $('spillToggle');
     const wallpaper = $('wallpaperToggle');
     const takeover = $('takeoverToggle');
+    const mute = $('muteToggle');
     if (sens) sens.addEventListener('input', () => {
       settings.sens = Number(sens.value);
       setText('sensValue', settings.sens.toFixed(2));
@@ -1432,6 +1613,37 @@
       setText('volValue', String(Math.round(settings.volume)));
       if (G.audioReady) {
         try { LimboAudio.setVolume(settings.volume / 100); } catch (_) {}
+      }
+      saveSettings();
+    });
+    if (musicVol) musicVol.addEventListener('input', () => {
+      settings.musicVolume = Number(musicVol.value);
+      setText('musicVolValue', String(Math.round(settings.musicVolume)));
+      if (G.audioReady) {
+        try { LimboAudio.setMusicVolume(settings.musicVolume / 100); } catch (_) {}
+      }
+      saveSettings();
+    });
+    if (sfxVol) sfxVol.addEventListener('input', () => {
+      settings.sfxVolume = Number(sfxVol.value);
+      setText('sfxVolValue', String(Math.round(settings.sfxVolume)));
+      if (G.audioReady) {
+        try { LimboAudio.setSfxVolume(settings.sfxVolume / 100); } catch (_) {}
+      }
+      saveSettings();
+    });
+    if (ambVol) ambVol.addEventListener('input', () => {
+      settings.ambienceVolume = Number(ambVol.value);
+      setText('ambVolValue', String(Math.round(settings.ambienceVolume)));
+      if (G.audioReady) {
+        try { LimboAudio.setAmbienceVolume(settings.ambienceVolume / 100); } catch (_) {}
+      }
+      saveSettings();
+    });
+    if (mute) mute.addEventListener('change', () => {
+      settings.muted = mute.checked;
+      if (G.audioReady) {
+        try { LimboAudio.setMuted(settings.muted); } catch (_) {}
       }
       saveSettings();
     });
@@ -1564,8 +1776,10 @@
         LimboAudio.setPaused(false);
         LimboAudio.setCombat(0);
         LimboAudio.startMusic(46.25, 'office');
+        LimboAudio.playMusic('menu');
       } catch (_) {}
     }
+    refreshMusicDirector(true);
     setText('appbarStatus', 'OPERATÖR BEKLENİYOR');
     $('statusLed')?.classList.remove('bad');
     updateMenuInfo();
@@ -2019,6 +2233,7 @@
     G.levelTime = 0;
     G.gtime = 0;
     G.animTime = 0;
+    G.lastDamageAt = 0;
     G.style = 0;
     G.combo = 0;
     G.comboTimer = 0;
@@ -2564,6 +2779,7 @@
     showSubtitle('// YÖNETİCİ', `${type.name} OTURUMU DEVRALDI. PENCERELER KALKAN. [F] İLE KAPAT.`, 6500);
     updateBossBar();
     refreshObjective();
+    refreshMusicDirector(true);
   }
 
   function setupWaves(lv) {
@@ -2787,6 +3003,7 @@
     showNotify('PUZZLE SAYACI BAŞLADI // 60 SANİYE', 'bad', 4200);
     showFeed('SÜRE DOLMADAN PUZZLE TAMAMLANMALI.', 'bad');
     sfx('denied');
+    refreshMusicDirector(true);
   }
 
   function stopPuzzleChallenge(solved = false) {
@@ -2803,6 +3020,7 @@
       block.classList.add('hidden');
       block.classList.remove('urgent');
     }
+    refreshMusicDirector(true);
   }
 
   function resetPuzzleChallenge() {
@@ -3945,6 +4163,7 @@
     }
     p.hp -= amount;
     p.iframe = opts.ignoreIframe ? 0.2 : 0.42;
+    G.lastDamageAt = performance.now();
     G.combo = 0;
     G.style = Math.max(0, G.style - 10);
     flashDamage();
@@ -3999,6 +4218,9 @@
     }, 1300);
     refreshObjective();
     checkLevelCleared();
+    setTimeout(() => {
+      if (G.levelId === lid && G.mode === 'playing') refreshMusicDirector(true);
+    }, 2800);
   }
 
   function checkLevelCleared() {
@@ -4481,6 +4703,7 @@
     showHUD(true);
     setText('appbarStatus', `KATMAN ${pad2(G.levelId)} // ÇEVRİMİÇİ`);
     try { LimboAudio.setPaused(false); } catch (_) {}
+    refreshMusicDirector(true);
     requestPointer();
     sfx('click');
   }
@@ -4525,6 +4748,7 @@
     sfx('qte');
     addShake(2);
     triggerGlitch();
+    refreshMusicDirector(true);
     showNotify('BELLEK SIZINTISI // KOMUT DİZİSİNİ GİR', 'bad', 3200);
   }
 
@@ -4556,6 +4780,7 @@
     }
     G.qte.seq = [];
     G.qte.idx = 0;
+    refreshMusicDirector(true);
     updateHud(true);
   }
 
@@ -4805,6 +5030,7 @@
         const alive = aliveEnemies().length;
         const combat = clamp(alive / 7 + (G.boss ? 0.45 : 0), 0, 1);
         try { LimboAudio.setCombat(combat); } catch (_) {}
+        refreshMusicDirector();
       }
     }
   }
@@ -5279,6 +5505,11 @@
     setMode('ending');
     showOverlay('ending');
     showHUD(false);
+    try {
+      LimboAudio.setPaused(false);
+      LimboAudio.playMusic('ending', { force: true });
+    } catch (_) {}
+    refreshMusicDirector(true);
     const overlay = $('ending');
     if (overlay) {
       overlay.classList.remove('final', 'void', 'glitch');
@@ -5343,7 +5574,11 @@
       overlay.classList.add('final', 'void');
     }
     setText('endingSeed', '// root_anomaly.bin\n// DURUM: SİLİNDİ\n// GERİ YÜKLEME: TOKEN YOK\n// OTURUM: 0x0009');
-    try { LimboAudio.stopMusic(); } catch (_) {}
+    try {
+      LimboAudio.setPaused(false);
+      LimboAudio.playMusic('ending', { force: true });
+    } catch (_) {}
+    refreshMusicDirector(true);
     sfx('final');
     flashGpu(2200);
     playEndingText(CONTENT.EPILOGUE, () => {
@@ -5759,6 +5994,30 @@
       menu() {
         G.debug = true;
         showMenu();
+      },
+      music(category) {
+        if (!category) return LimboAudio.getMusicState();
+        try { return LimboAudio.playMusic(String(category), { force: true }); } catch (err) { return { error: String(err) }; }
+      },
+      musicState() {
+        try { return LimboAudio.getMusicState(); } catch (err) { return { error: String(err) }; }
+      },
+      musicSeek(remaining) {
+        try { return LimboAudio.seekMusic(Number(remaining) || 3); } catch (err) { return { error: String(err) }; }
+      },
+      pause() { pauseGame(); return LimboAudio.getMusicState(); },
+      resume() { resumeGame(); return LimboAudio.getMusicState(); },
+      settingsPanel() { openSettings(); return true; },
+      fakeEnding() { showFakeEnding(); return LimboAudio.getMusicState(); },
+      audioVolumes(master, music, sfxVolume, ambience, muted) {
+        try {
+          if (master != null) LimboAudio.setVolume(Number(master));
+          if (music != null) LimboAudio.setMusicVolume(Number(music));
+          if (sfxVolume != null) LimboAudio.setSfxVolume(Number(sfxVolume));
+          if (ambience != null) LimboAudio.setAmbienceVolume(Number(ambience));
+          if (muted != null) LimboAudio.setMuted(Boolean(muted));
+          return LimboAudio.getMusicState();
+        } catch (err) { return { error: String(err) }; }
       },
       killAll() {
         for (const e of G.enemies.slice()) {

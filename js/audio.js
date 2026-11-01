@@ -10,9 +10,26 @@ const LimboAudio = (() => {
   let noiseBuffer = null;
   let started = false;
   let volume = 0.7;
+  let musicVolume = 0.7;
+  let sfxVolume = 0.85;
+  let ambienceVolume = 0.55;
   let muted = false;
   let musicOn = true;
   let paused = false;
+
+  // file-based music decks (two decks for crossfades)
+  let musicDecks = null;
+  let musicDeckIndex = 0;
+  let musicCategory = null;
+  let musicCurrentTrack = null;
+  let musicCurrentTrackIndex = -1;
+  let musicFadeTimer = null;
+  let musicAdvancing = false;
+  let musicFallback = false;
+  let musicAutoplayBlocked = false;
+  let musicGestureBound = false;
+  const musicLastIndex = Object.create(null);
+  const musicFailed = Object.create(null);
 
   // ambient nodes
   let droneNodes = [];
@@ -40,6 +57,64 @@ const LimboAudio = (() => {
   const STYLE_BPM = {
     office: 92, ice: 84, shadow: 76, void: 68, grave: 64,
     corrupt: 118, circuit: 126, code: 112, mirror: 88, root: 60, hazard: 132,
+  };
+
+  // --------------------------------------------------------------- file music
+  // The MP3 files live in assets/music/<category>/ and are described in
+  // assets/music/manifest.json together with their source and license.
+  const MUSIC_ROOT = 'assets/music/';
+  const MUSIC_CATEGORY_META = {
+    menu: { label: 'Ana Menü', fadeSeconds: 3.0, gain: 0.90 },
+    exploration: { label: 'Keşif', fadeSeconds: 4.0, gain: 1.00 },
+    facility: { label: 'Tesis', fadeSeconds: 3.5, gain: 0.95 },
+    mystery: { label: 'Gizem', fadeSeconds: 4.0, gain: 0.95 },
+    suspense: { label: 'Gerilim', fadeSeconds: 2.5, gain: 1.00 },
+    chase: { label: 'Kovalamaca', fadeSeconds: 1.8, gain: 1.00 },
+    timed: { label: 'Süreli Bulmaca', fadeSeconds: 1.8, gain: 0.95 },
+    boss: { label: 'Boss / Büyük Olay', fadeSeconds: 1.6, gain: 1.00 },
+    ending: { label: 'Final / Jenerik', fadeSeconds: 4.0, gain: 0.90 },
+  };
+  const MUSIC_LIBRARY = {
+    menu: [
+      { file: 'menu/the-empty-corridor.mp3', title: 'The Empty Corridor', duration: 150.38 },
+      { file: 'menu/before-the-last-door.mp3', title: 'Before the Last Door', duration: 149.58 },
+    ],
+    exploration: [
+      { file: 'exploration/broken-hallway.mp3', title: 'Broken Hallway', duration: 134.64 },
+      { file: 'exploration/moth-hall.mp3', title: 'Moth Hall', duration: 168.19 },
+      { file: 'exploration/no-way-back.mp3', title: 'No Way Back', duration: 119.57 },
+    ],
+    facility: [
+      { file: 'facility/haunted-glass-hall.mp3', title: 'Haunted Glass Hall', duration: 163.39 },
+      { file: 'facility/glass-house-pulse.mp3', title: 'Glass House Pulse', duration: 134.04 },
+    ],
+    mystery: [
+      { file: 'mystery/basement-door.mp3', title: 'Basement Door', duration: 144.24 },
+      { file: 'mystery/haunted-hallway-tape.mp3', title: 'Haunted Hallway Tape', duration: 149.30 },
+    ],
+    suspense: [
+      { file: 'suspense/footsteps-approaching.mp3', title: 'Footsteps Approaching', duration: 168.17 },
+      { file: 'suspense/sensing-something-behind-you.mp3', title: 'Sensing Something Behind You', duration: 193.39 },
+      { file: 'suspense/cornered-with-no-way-out.mp3', title: 'Cornered with No Way Out', duration: 204.05 },
+    ],
+    chase: [
+      { file: 'chase/run-and-dont-look-back.mp3', title: "Run and Don't Look Back", duration: 65.14 },
+      { file: 'chase/the-footsteps-behind.mp3', title: 'The Footsteps Behind', duration: 87.62 },
+      { file: 'chase/clip-run.mp3', title: 'Clip Run', duration: 137.40 },
+    ],
+    timed: [
+      { file: 'timed/koto-circuit.mp3', title: 'Koto Circuit', duration: 162.19 },
+      { file: 'timed/neon-afterimage.mp3', title: 'Neon Afterimage', duration: 184.27 },
+    ],
+    boss: [
+      { file: 'boss/scarlet-dominion.mp3', title: 'Scarlet Dominion', duration: 180.07 },
+      { file: 'boss/voidbreaker.mp3', title: 'Voidbreaker', duration: 127.08 },
+      { file: 'boss/ashfall-tyrant.mp3', title: 'Ashfall Tyrant', duration: 158.66 },
+    ],
+    ending: [
+      { file: 'ending/first-light-promise.mp3', title: 'First Light Promise', duration: 119.28 },
+      { file: 'ending/last-goodbye.mp3', title: 'Last Goodbye', duration: 154.94 },
+    ],
   };
 
   function safeCtx() {
@@ -73,11 +148,11 @@ const LimboAudio = (() => {
     musicBus.connect(compressor);
 
     sfxBus = ctx.createGain();
-    sfxBus.gain.value = 0.85;
+    sfxBus.gain.value = sfxVolume;
     sfxBus.connect(compressor);
 
     ambBus = ctx.createGain();
-    ambBus.gain.value = 0.28;
+    ambBus.gain.value = ambienceVolume * 0.5;
     ambBus.connect(compressor);
 
     noiseBuffer = makeNoise(2.2);
@@ -162,13 +237,24 @@ const LimboAudio = (() => {
 
   function makeNoise(seconds) {
     const len = Math.floor(ctx.sampleRate * seconds);
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const data = buf.getChannelData(0);
+    const fade = Math.max(16, Math.floor(ctx.sampleRate * 0.05));
+    const temp = new Float32Array(len + fade);
     let last = 0;
-    for (let i = 0; i < len; i++) {
+    for (let i = 0; i < temp.length; i++) {
       const white = Math.random() * 2 - 1;
       last = (last + 0.03 * white) / 1.03;
-      data[i] = last * 3.2 + white * 0.18;
+      temp[i] = last * 3.2 + white * 0.18;
+    }
+    // Crossfade the tail into the head so looping the noise bed cannot click.
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      if (i < fade) {
+        const t = i / fade;
+        data[i] = temp[i] * t + temp[len + i] * (1 - t);
+      } else {
+        data[i] = temp[i];
+      }
     }
     return buf;
   }
@@ -234,23 +320,58 @@ const LimboAudio = (() => {
   function setVolume(v) {
     volume = Math.max(0, Math.min(1, Number(v) || 0));
     if (master) master.gain.setTargetAtTime(muted ? 0 : volume, ctx.currentTime, 0.04);
+    applyMusicVolumes();
+  }
+
+  function setMusicVolume(v) {
+    musicVolume = Math.max(0, Math.min(1, Number(v) || 0));
+    applyMusicVolumes();
+  }
+
+  function setSfxVolume(v) {
+    sfxVolume = Math.max(0, Math.min(1, Number(v) || 0));
+    if (sfxBus && ctx) sfxBus.gain.setTargetAtTime(sfxVolume, ctx.currentTime, 0.05);
+  }
+
+  function setAmbienceVolume(v) {
+    ambienceVolume = Math.max(0, Math.min(1, Number(v) || 0));
+    applyAmbienceGain();
+  }
+
+  function applyAmbienceGain() {
+    if (!ambBus || !ctx) return;
+    ambBus.gain.setTargetAtTime((paused ? 0.64 : 1) * ambienceVolume * 0.5, ctx.currentTime, 0.2);
   }
 
   function setMuted(value) {
     muted = Boolean(value);
     if (master) master.gain.setTargetAtTime(muted ? 0 : volume, ctx.currentTime, 0.05);
+    applyMusicVolumes();
   }
 
   function isMuted() { return muted; }
 
   function setPaused(value) {
-    paused = Boolean(value);
-    if (!ctx) return;
+    const next = Boolean(value);
+    if (paused === next) {
+      if (!next) resumeFileMusic();
+      return;
+    }
+    paused = next;
+    if (!ctx) {
+      if (paused) pauseFileMusic(); else resumeFileMusic();
+      return;
+    }
     if (musicBus) musicBus.gain.setTargetAtTime(paused ? 0.0001 : 0.35 + combat * 0.45, ctx.currentTime, 0.2);
-    if (ambBus) ambBus.gain.setTargetAtTime(paused ? 0.18 : 0.28, ctx.currentTime, 0.25);
+    applyAmbienceGain();
     if (fanGain) fanGain.gain.setTargetAtTime(paused ? 0.014 : 0.03, ctx.currentTime, 0.3);
     if (staticGain) staticGain.gain.setTargetAtTime(paused ? 0.0015 : 0.0045, ctx.currentTime, 0.3);
-    if (paused) safeCtx();
+    if (paused) {
+      pauseFileMusic();
+      safeCtx();
+    } else {
+      resumeFileMusic();
+    }
   }
 
   function setCombat(value) {
@@ -399,31 +520,417 @@ const LimboAudio = (() => {
     }
   }
 
+  // --------------------------------------------------------------- file music engine
+  function ensureMusicDecks() {
+    if (musicDecks) return musicDecks;
+    musicDecks = [createMusicDeck(0), createMusicDeck(1)];
+    return musicDecks;
+  }
+
+  function createMusicDeck(index) {
+    const el = new Audio();
+    el.preload = 'auto';
+    el.volume = 0;
+    el.addEventListener('ended', () => {
+      if (musicDeckIndex === index) advanceMusicTrack('ended');
+    });
+    el.addEventListener('timeupdate', () => {
+      if (musicDeckIndex !== index || paused || !musicCategory) return;
+      const deck = musicDecks && musicDecks[index];
+      if (!deck || !deck.track || deck.advanceQueued) return;
+      const total = Number(el.duration);
+      if (!Number.isFinite(total) || total <= 0) return;
+      const meta = MUSIC_CATEGORY_META[musicCategory];
+      const lead = Math.max(2.8, (meta ? meta.fadeSeconds : 3) + 0.9);
+      const remaining = total - el.currentTime;
+      if (remaining > 0.15 && remaining <= lead) {
+        deck.advanceQueued = true;
+        advanceMusicTrack('near-end');
+      }
+    });
+    el.addEventListener('error', () => onMusicDeckError(index));
+    return {
+      index,
+      el,
+      track: null,
+      trackIndex: -1,
+      gain: 0,
+      fadeFrom: 0,
+      fadeTo: 0,
+      fadeStart: 0,
+      fadeDur: 1,
+      fadeAction: '',
+      advanceQueued: false,
+    };
+  }
+
+  function currentMusicDeck() {
+    if (!musicDecks) return null;
+    return musicDecks[musicDeckIndex] || musicDecks[0] || null;
+  }
+
+  function applyMusicVolumes() {
+    if (!musicDecks) return;
+    for (const deck of musicDecks) applyDeckVolume(deck);
+  }
+
+  function applyDeckVolume(deck) {
+    if (!deck) return;
+    const meta = musicCategory ? MUSIC_CATEGORY_META[musicCategory] : null;
+    const bus = (muted ? 0 : volume) * musicVolume * (meta ? meta.gain : 1);
+    const level = Math.max(0, Math.min(1, bus * deck.gain));
+    try { deck.el.volume = level; } catch (_) {}
+  }
+
+  function fadeDeckTo(deck, target, seconds, action) {
+    if (!deck) return;
+    deck.fadeFrom = deck.gain;
+    deck.fadeTo = Math.max(0, Math.min(1, Number(target) || 0));
+    deck.fadeStart = performance.now();
+    deck.fadeDur = Math.max(40, (Number(seconds) || 0.01) * 1000);
+    deck.fadeAction = action || '';
+    if (!musicFadeTimer) musicFadeTimer = setInterval(musicFadeStep, 40);
+  }
+
+  function musicFadeStep() {
+    if (!musicDecks) {
+      clearInterval(musicFadeTimer);
+      musicFadeTimer = null;
+      return;
+    }
+    const now = performance.now();
+    let active = false;
+    for (const deck of musicDecks) {
+      if (!deck.fadeStart) continue;
+      const t = Math.min(1, (now - deck.fadeStart) / deck.fadeDur);
+      deck.gain = deck.fadeFrom + (deck.fadeTo - deck.fadeFrom) * t;
+      applyDeckVolume(deck);
+      if (t >= 1) {
+        const action = deck.fadeAction;
+        deck.fadeStart = 0;
+        deck.fadeAction = '';
+        deck.gain = deck.fadeTo;
+        applyDeckVolume(deck);
+        if (deck.gain <= 0.001 && action === 'pause') {
+          try { deck.el.pause(); } catch (_) {}
+        } else if (deck.gain <= 0.001 && action === 'release') {
+          releaseMusicDeck(deck);
+        }
+      } else {
+        active = true;
+      }
+    }
+    if (!active) {
+      clearInterval(musicFadeTimer);
+      musicFadeTimer = null;
+    }
+  }
+
+  function releaseMusicDeck(deck) {
+    if (!deck) return;
+    try { deck.el.pause(); } catch (_) {}
+    deck.track = null;
+    deck.trackIndex = -1;
+    deck.gain = 0;
+    deck.advanceQueued = false;
+    deck.fadeStart = 0;
+    deck.fadeAction = '';
+    try { deck.el.volume = 0; } catch (_) {}
+    try {
+      deck.el.removeAttribute('src');
+      deck.el.load();
+    } catch (_) {}
+  }
+
+  function attemptDeckPlay(deck) {
+    if (!deck || !deck.track) return;
+    const promise = deck.el.play();
+    if (promise && typeof promise.catch === 'function') {
+      promise.then(() => {
+        musicAutoplayBlocked = false;
+      }).catch((err) => {
+        if (err && err.name === 'NotAllowedError') {
+          musicAutoplayBlocked = true;
+          bindMusicGesture();
+        }
+      });
+    }
+  }
+
+  function bindMusicGesture() {
+    if (musicGestureBound) return;
+    musicGestureBound = true;
+    const retry = () => {
+      document.removeEventListener('pointerdown', retry, true);
+      document.removeEventListener('keydown', retry, true);
+      musicGestureBound = false;
+      if (paused || !musicOn) return;
+      const deck = currentMusicDeck();
+      if (deck && deck.track && deck.el.paused) {
+        attemptDeckPlay(deck);
+        fadeDeckTo(deck, 1, 0.6);
+      }
+    };
+    document.addEventListener('pointerdown', retry, true);
+    document.addEventListener('keydown', retry, true);
+  }
+
+  function onMusicDeckError(index) {
+    const deck = musicDecks && musicDecks[index];
+    if (!deck || !deck.track) return;
+    const failedFile = deck.track.file;
+    musicFailed[failedFile] = true;
+    const wasCurrent = musicDeckIndex === index;
+    releaseMusicDeck(deck);
+    if (!wasCurrent || !musicCategory) return;
+    const category = musicCategory;
+    const pick = pickMusicTrack(category);
+    if (!pick) {
+      enableProceduralFallback();
+      return;
+    }
+    setTimeout(() => {
+      if (musicCategory === category && !paused && musicOn) {
+        startDeckTrack(pick, category, false);
+      }
+    }, 80);
+  }
+
+  function pickMusicTrack(category) {
+    const list = MUSIC_LIBRARY[category];
+    if (!Array.isArray(list) || !list.length) return null;
+    const available = [];
+    for (let i = 0; i < list.length; i++) {
+      if (!musicFailed[list[i].file]) available.push(i);
+    }
+    if (!available.length) return null;
+    let pool = available;
+    if (pool.length > 1 && musicLastIndex[category] != null) {
+      const filtered = pool.filter((i) => i !== musicLastIndex[category]);
+      if (filtered.length) pool = filtered;
+    }
+    const index = pool[Math.floor(Math.random() * pool.length)];
+    musicLastIndex[category] = index;
+    return { track: list[index], index };
+  }
+
+  function startDeckTrack(pick, category, crossfade = true) {
+    if (!pick || !pick.track) return;
+    const decks = ensureMusicDecks();
+    const oldDeck = currentMusicDeck();
+    let next = decks.find((d) => d !== oldDeck && !d.track);
+    if (!next) next = decks.find((d) => d !== oldDeck);
+    if (!next) next = decks[0];
+    if (next.track) releaseMusicDeck(next);
+
+    const meta = MUSIC_CATEGORY_META[category] || { fadeSeconds: 2.5, gain: 1 };
+    next.track = pick.track;
+    next.trackIndex = pick.index;
+    next.advanceQueued = false;
+    next.gain = 0;
+    next.fadeStart = 0;
+    next.fadeAction = '';
+    try { next.el.volume = 0; } catch (_) {}
+    next.el.src = MUSIC_ROOT + pick.track.file;
+    try { next.el.load(); } catch (_) {}
+    musicCategory = category;
+    musicCurrentTrack = pick.track;
+    musicCurrentTrackIndex = pick.index;
+    musicDeckIndex = next.index;
+    musicFallback = false;
+    attemptDeckPlay(next);
+    const fade = crossfade ? meta.fadeSeconds : 0.5;
+    fadeDeckTo(next, 1, fade);
+    if (oldDeck && oldDeck !== next && oldDeck.track && oldDeck.fadeAction !== 'pause') {
+      fadeDeckTo(oldDeck, 0, fade, 'release');
+    }
+    applyMusicVolumes();
+  }
+
+  function playMusic(category, options) {
+    const meta = MUSIC_CATEGORY_META[category];
+    if (!meta || !MUSIC_LIBRARY[category] || !MUSIC_LIBRARY[category].length) {
+      return getMusicState();
+    }
+    ensureMusicDecks();
+    const force = Boolean(options && options.force);
+    const sameCategory = musicCategory === category && Boolean(musicCurrentTrack);
+    if (sameCategory && !force && !musicFallback) {
+      const deck = currentMusicDeck();
+      if (deck && deck.track && deck.el.paused && !paused && musicOn) {
+        attemptDeckPlay(deck);
+        fadeDeckTo(deck, 1, 0.8);
+      }
+      return getMusicState();
+    }
+    const pick = pickMusicTrack(category);
+    if (!pick) {
+      enableProceduralFallback();
+      return getMusicState();
+    }
+    musicAdvancing = false;
+    startDeckTrack(pick, category, true);
+    return getMusicState();
+  }
+
+  function advanceMusicTrack(reason) {
+    if (musicAdvancing || paused || !musicCategory || musicFallback) return;
+    musicAdvancing = true;
+    const category = musicCategory;
+    const pick = pickMusicTrack(category);
+    if (!pick) {
+      musicAdvancing = false;
+      enableProceduralFallback();
+      return;
+    }
+    startDeckTrack(pick, category, true);
+    setTimeout(() => { musicAdvancing = false; }, 900);
+  }
+
+  function pauseFileMusic() {
+    if (!musicDecks) return;
+    for (const deck of musicDecks) {
+      if (!deck.track || deck.fadeAction === 'release') continue;
+      if (deck.el.paused) {
+        deck.gain = 0;
+        applyDeckVolume(deck);
+      } else {
+        fadeDeckTo(deck, 0, 0.55, 'pause');
+      }
+    }
+  }
+
+  function resumeFileMusic() {
+    if (!musicOn) return;
+    if (musicFallback) {
+      startSequencer();
+      return;
+    }
+    if (!musicDecks) return;
+    const deck = currentMusicDeck();
+    if (!deck || !deck.track) return;
+    for (const other of musicDecks) {
+      if (other !== deck && other.track) fadeDeckTo(other, 0, 0.4, 'release');
+    }
+    deck.gain = Math.min(deck.gain, 0.05);
+    applyDeckVolume(deck);
+    attemptDeckPlay(deck);
+    fadeDeckTo(deck, 1, 0.9);
+  }
+
+  function startSequencer() {
+    if (!ctx || seqTimer || !musicOn || paused || !musicFallback) return;
+    step = 0;
+    nextTime = ctx.currentTime + 0.1;
+    bpm = STYLE_BPM[levelStyle] || 104;
+    seqTimer = setInterval(scheduler, 40);
+    if (musicBus) musicBus.gain.setTargetAtTime(0.22 + combat * 0.6, ctx.currentTime, 1.2);
+  }
+
+  function enableProceduralFallback() {
+    if (musicFallback) return;
+    musicFallback = true;
+    musicAdvancing = false;
+    if (musicDecks) {
+      for (const deck of musicDecks) {
+        if (deck.track) fadeDeckTo(deck, 0, 0.8, 'release');
+      }
+    }
+    startSequencer();
+  }
+
+  function seekMusic(remaining) {
+    const deck = currentMusicDeck();
+    if (!deck || !deck.track) return getMusicState();
+    const total = Number(deck.el.duration);
+    if (Number.isFinite(total) && total > 0.5) {
+      deck.el.currentTime = Math.max(0, total - Math.max(1, Number(remaining) || 3));
+    }
+    return getMusicState();
+  }
+
+  function getMusicState() {
+    const deck = currentMusicDeck();
+    const meta = musicCategory ? MUSIC_CATEGORY_META[musicCategory] : null;
+    const duration = deck && Number.isFinite(deck.el.duration)
+      ? Number(deck.el.duration.toFixed(2))
+      : (musicCurrentTrack ? musicCurrentTrack.duration : 0);
+    return {
+      category: musicCategory,
+      label: meta ? meta.label : null,
+      track: musicCurrentTrack ? musicCurrentTrack.title : null,
+      file: musicCurrentTrack ? musicCurrentTrack.file : null,
+      trackIndex: musicCurrentTrackIndex,
+      deck: musicDeckIndex,
+      playing: Boolean(deck && deck.track && !deck.el.paused),
+      paused,
+      position: deck ? Number(deck.el.currentTime.toFixed(2)) : 0,
+      duration,
+      gain: deck ? Number(deck.gain.toFixed(3)) : 0,
+      fallback: musicFallback,
+      autoplayBlocked: musicAutoplayBlocked,
+      failed: Object.keys(musicFailed),
+      volumes: {
+        master: Number(volume.toFixed(2)),
+        music: Number(musicVolume.toFixed(2)),
+        sfx: Number(sfxVolume.toFixed(2)),
+        ambience: Number(ambienceVolume.toFixed(2)),
+        muted,
+        musicOn,
+      },
+      decks: (musicDecks || []).map((d) => ({
+        index: d.index,
+        track: d.track ? d.track.title : null,
+        gain: Number(d.gain.toFixed(3)),
+        output: Number(d.el.volume.toFixed(3)),
+        paused: d.el.paused,
+      })),
+    };
+  }
+
   function startMusic(root, style) {
     if (!safeCtx()) return;
     startAmbient(root, style);
-    if (seqTimer) clearInterval(seqTimer);
-    step = 0;
-    nextTime = ctx.currentTime + 0.15;
-    bpm = STYLE_BPM[style] || 104;
-    if (musicOn) seqTimer = setInterval(scheduler, 40);
-    if (musicBus) musicBus.gain.setTargetAtTime(0.22 + combat * 0.6, ctx.currentTime, 1.2);
+    // File-based music is the primary layer. The procedural sequencer is kept
+    // as a fallback for machines where the bundled MP3 files cannot be decoded.
+    if (seqTimer) { clearInterval(seqTimer); seqTimer = null; }
+    if (musicFallback) startSequencer();
   }
 
   function stopMusic() {
     if (seqTimer) { clearInterval(seqTimer); seqTimer = null; }
     stopAmbient();
+    musicAdvancing = false;
+    musicCategory = null;
+    musicCurrentTrack = null;
+    musicCurrentTrackIndex = -1;
     if (musicBus && ctx) musicBus.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.4);
+    if (musicDecks) {
+      for (const deck of musicDecks) {
+        if (deck.track) fadeDeckTo(deck, 0, 0.9, 'release');
+      }
+    }
   }
 
   function setMusicEnabled(on) {
     musicOn = Boolean(on);
     if (!musicOn) {
       if (seqTimer) { clearInterval(seqTimer); seqTimer = null; }
-    } else if (ctx && !seqTimer) {
-      step = 0;
-      nextTime = ctx.currentTime + 0.1;
-      seqTimer = setInterval(scheduler, 40);
+      if (musicDecks) {
+        for (const deck of musicDecks) {
+          if (deck.track) fadeDeckTo(deck, 0, 0.5, 'pause');
+        }
+      }
+      return;
+    }
+    if (musicFallback) {
+      startSequencer();
+    } else {
+      const deck = currentMusicDeck();
+      if (deck && deck.track && !paused) {
+        attemptDeckPlay(deck);
+        fadeDeckTo(deck, 1, 0.7);
+      }
     }
   }
 
@@ -598,6 +1105,9 @@ const LimboAudio = (() => {
     init,
     play,
     setVolume,
+    setMusicVolume,
+    setSfxVolume,
+    setAmbienceVolume,
     setMuted,
     isMuted,
     setPaused,
@@ -605,6 +1115,9 @@ const LimboAudio = (() => {
     startMusic,
     stopMusic,
     setMusicEnabled,
+    playMusic,
+    getMusicState,
+    seekMusic,
     setGlitch,
     setHardwareStyle,
     get ctx() { return ctx; },

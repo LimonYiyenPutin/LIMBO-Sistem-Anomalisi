@@ -725,6 +725,7 @@ function createMainWindow() {
                 pixel: px,
                 stageRect: (() => { const r = document.getElementById('stage').getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; })(),
                 engine: (() => { try { return typeof LimboEngine !== 'undefined' && LimboEngine.debugInfo ? LimboEngine.debugInfo() : null; } catch (err) { return String(err); } })(),
+                music: (() => { try { return LimboAudio.getMusicState(); } catch (err) { return String(err); } })(),
               };
             })()`);
             console.log('DEBUG_STATE', JSON.stringify(dbg));

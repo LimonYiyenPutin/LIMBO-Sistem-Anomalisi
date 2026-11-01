@@ -1,0 +1,449 @@
+{
+  "version": 1,
+  "generatedAt": "2026-11-01",
+  "root": "assets/music",
+  "source": {
+    "name": "Nihonichi Free BGM",
+    "url": "https://nihonichi-bgm.com/",
+    "type": "AI-generated, curated free BGM library"
+  },
+  "license": {
+    "id": "nihonichi-free-bgm-commercial",
+    "name": "Nihonichi Free BGM Commercial Use License",
+    "url": "https://nihonichi-bgm.com/en/commercial-music-license/",
+    "verifiedAt": "2026-11-01",
+    "summary": "Free to download and use in commercial projects, including games and apps. No sign-up and no credit required. Do not redistribute or sell the audio files on their own. Tracks are AI-generated.",
+    "creditLine": "Music: Nihonichi Free BGM (optional)",
+    "redistribution": "The bundled MP3 files are part of this game and must not be extracted and redistributed as a standalone music collection."
+  },
+  "categories": {
+    "menu": {
+      "label": "Main Menu",
+      "fadeSeconds": 3,
+      "tracks": [
+        {
+          "file": "menu/the-empty-corridor.mp3",
+          "title": "The Empty Corridor",
+          "titleOriginal": "【ホラー】誰もいない廊下",
+          "sourcePage": "https://nihonichi-bgm.com/songs/the-empty-corridor_f0d80482?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/horror/track_f0d80482.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 150.38,
+          "bpm": null,
+          "tags": "horror exploration, ambient, drone",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3377190,
+          "sha256": "ec516b81397ea1315fc1e52560749a0ceaa02553bc3953c4ee928d41b4da9967"
+        },
+        {
+          "file": "menu/before-the-last-door.mp3",
+          "title": "Before the Last Door",
+          "titleOriginal": "【ホラー】最後の扉の前で",
+          "sourcePage": "https://nihonichi-bgm.com/songs/before-the-last-door_74e3daaf?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/horror/track_74e3daaf.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 149.64,
+          "bpm": null,
+          "tags": "horror ambient, dark ambient, instrumental",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3314848,
+          "sha256": "426e5fc0cee5a212a663e273cee3c1093f140443c652f644125351488ab493a9"
+        }
+      ]
+    },
+    "exploration": {
+      "label": "Exploration",
+      "fadeSeconds": 4,
+      "tracks": [
+        {
+          "file": "exploration/broken-hallway.mp3",
+          "title": "Broken Hallway",
+          "titleOriginal": "Broken・Hallway",
+          "sourcePage": "https://nihonichi-bgm.com/songs/broken-hallway_f4907e54?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/ambient/broken-hallway_f4907e54.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 134.64,
+          "bpm": 62,
+          "tags": "ambient, horror ambient, dark ambient",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3231510,
+          "sha256": "ee1ac33a9a3e6f15720994f9fd7cc6151389a4ccb64421293bfd3de1762750fd"
+        },
+        {
+          "file": "exploration/moth-hall.mp3",
+          "title": "Moth Hall",
+          "titleOriginal": "Moth・Hall",
+          "sourcePage": "https://nihonichi-bgm.com/songs/moth-hall_fbb34d09?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/ambient/moth-hall_fbb34d09.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 168.19,
+          "bpm": 64,
+          "tags": "dark ambient, horror ambient, cinematic",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 4036758,
+          "sha256": "9c1bd4ef28a14fc2127e2441ae2c93748e189801dcd1579413ceaf721abb10f0"
+        },
+        {
+          "file": "exploration/no-way-back.mp3",
+          "title": "No Way Back",
+          "titleOriginal": "【ホラー】もう戻れない道",
+          "sourcePage": "https://nihonichi-bgm.com/songs/no-way-back_2a5a2f53?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/horror/track_2a5a2f53.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 119.57,
+          "bpm": null,
+          "tags": "horror exploration, ambient, drone",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 2693958,
+          "sha256": "f025c863ab1aa5600bf271f001e0c582e33f23fd8bb97548b05eac89892989e9"
+        }
+      ]
+    },
+    "facility": {
+      "label": "Facility",
+      "fadeSeconds": 3.5,
+      "tracks": [
+        {
+          "file": "facility/haunted-glass-hall.mp3",
+          "title": "Haunted Glass Hall",
+          "titleOriginal": "Haunted・ガラス・Hall",
+          "sourcePage": "https://nihonichi-bgm.com/songs/haunted-glass-hall_c27b14bb?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/ambient/haunted-glass-hall_c27b14bb.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 163.39,
+          "bpm": 118.32,
+          "tags": "ambient, horror ambient, dark ambient",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3921558,
+          "sha256": "575c2ce5cb2a58c38851a2052c152c8a9c81458e045eeb63b3520f110060e16a"
+        },
+        {
+          "file": "facility/glass-house-pulse.mp3",
+          "title": "Glass House Pulse",
+          "titleOriginal": "ガラス・House・脈動",
+          "sourcePage": "https://nihonichi-bgm.com/songs/glass-house-pulse_5ecc9777?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/ambient/glass-house-pulse_5ecc9777.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 134.04,
+          "bpm": 62,
+          "tags": "dark ambient, ambient horror, drone",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3217110,
+          "sha256": "16761343753e6bf2ca1800ebae669c0dfe231bf0e49364b4a38e23a9082c8a99"
+        }
+      ]
+    },
+    "mystery": {
+      "label": "Mystery",
+      "fadeSeconds": 4,
+      "tracks": [
+        {
+          "file": "mystery/basement-door.mp3",
+          "title": "Basement Door",
+          "titleOriginal": "Basement・扉",
+          "sourcePage": "https://nihonichi-bgm.com/songs/basement-door_b0fc9415?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/ambient/basement-door_b0fc9415.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 144.24,
+          "bpm": 60,
+          "tags": "ambient, horror ambient, psychological thriller",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3461910,
+          "sha256": "10a96ccbfac86384d7110d98ab1ec23b86edf306937c6aaa9936e57f3e26b237"
+        },
+        {
+          "file": "mystery/haunted-hallway-tape.mp3",
+          "title": "Haunted Hallway Tape",
+          "titleOriginal": "Haunted・Hallway・Tape",
+          "sourcePage": "https://nihonichi-bgm.com/songs/haunted-hallway-tape_e834d3b2?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/ambient/haunted-hallway-tape_e834d3b2.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 149.3,
+          "bpm": 107.07,
+          "tags": "ambient, horror ambient, cinematic",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3583446,
+          "sha256": "afc02870b8e5b224ae195a9fc2b7cb595801854841cc1f74b3302dd541f38cec"
+        }
+      ]
+    },
+    "suspense": {
+      "label": "Suspense",
+      "fadeSeconds": 2.5,
+      "tracks": [
+        {
+          "file": "suspense/footsteps-approaching.mp3",
+          "title": "Footsteps Approaching",
+          "titleOriginal": "【ホラー】足音が近づいてくる時に",
+          "sourcePage": "https://nihonichi-bgm.com/songs/footsteps-approaching_8fcf6fef?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/horror/track_8fcf6fef.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 168.17,
+          "bpm": null,
+          "tags": "horror ambient, dark ambient, instrumental",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3872128,
+          "sha256": "cd8ab537884734fcb1294dac241ce77fee9115f66a9e177a6755a1b52a031268"
+        },
+        {
+          "file": "suspense/sensing-something-behind-you.mp3",
+          "title": "Sensing Something Behind You",
+          "titleOriginal": "【ホラー】背後に気配を感じた時に",
+          "sourcePage": "https://nihonichi-bgm.com/songs/sensing-something-behind-you_b933bb23?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/horror/track_b933bb23.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 193.39,
+          "bpm": null,
+          "tags": "horror ambient, dark ambient, instrumental",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 4422160,
+          "sha256": "c5dae8e2b4753e081cb9577d52a4818516146e36143c197ef5eea4cb3757377f"
+        },
+        {
+          "file": "suspense/cornered-with-no-way-out.mp3",
+          "title": "Cornered with No Way Out",
+          "titleOriginal": "【ホラー】逃げ場を失った時に",
+          "sourcePage": "https://nihonichi-bgm.com/songs/cornered-with-no-way-out_bf46a3e8?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/horror/track_bf46a3e8.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 204.05,
+          "bpm": null,
+          "tags": "horror ambient, dark ambient, instrumental",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 4680208,
+          "sha256": "e6c9138ba385f7c4454d619c5b5652863ee73e22f830400d87b3ee2ac5831b7f"
+        }
+      ]
+    },
+    "chase": {
+      "label": "Chase",
+      "fadeSeconds": 1.8,
+      "tracks": [
+        {
+          "file": "chase/run-and-dont-look-back.mp3",
+          "title": "Run and Don't Look Back",
+          "titleOriginal": "【ホラー】振り返らずに走れ",
+          "sourcePage": "https://nihonichi-bgm.com/songs/run-and-dont-look-back_0b9f7fb3?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/horror/track_0b9f7fb3.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 65.14,
+          "bpm": null,
+          "tags": "horror, instrumental, panic",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 1586521,
+          "sha256": "9ea145922dd2507f27494fedd941be2ed574be56459b2b188a2727d128241ddb"
+        },
+        {
+          "file": "chase/the-footsteps-behind.mp3",
+          "title": "The Footsteps Behind",
+          "titleOriginal": "【ホラー】追ってくる足音",
+          "sourcePage": "https://nihonichi-bgm.com/songs/the-footsteps-behind_39a6a2c5?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/horror/track_39a6a2c5.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 87.62,
+          "bpm": null,
+          "tags": "horror, instrumental, panic",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 2017849,
+          "sha256": "2456d46aeeed50c423c2522a395602ed6884fd1f9de2b69c81b436591404848a"
+        },
+        {
+          "file": "chase/clip-run.mp3",
+          "title": "Clip Run",
+          "titleOriginal": "Clip・走り",
+          "sourcePage": "https://nihonichi-bgm.com/songs/clip-run_097a48c9?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/electronic/clip-run_097a48c9.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 137.4,
+          "bpm": 142.05,
+          "tags": "trap hip hop, hip hop, dark electronic",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3297750,
+          "sha256": "b297b8871020fff7fa195de5b3c845de5b6af1a450342ddd89b7477141bdeb03"
+        }
+      ]
+    },
+    "timed": {
+      "label": "Timed Puzzle",
+      "fadeSeconds": 1.8,
+      "tracks": [
+        {
+          "file": "timed/koto-circuit.mp3",
+          "title": "Koto Circuit",
+          "titleOriginal": "Koto・Circuit",
+          "sourcePage": "https://nihonichi-bgm.com/songs/koto-circuit_0d5ba972?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/electronic/koto-circuit_0d5ba972.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 162.19,
+          "bpm": 136.01,
+          "tags": "electronic, beats, Japanese fusion",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3892758,
+          "sha256": "5fabda204648ee21af8705affc124fc6ee3d83127ccd413946a33763e61c6f4e"
+        },
+        {
+          "file": "timed/neon-afterimage.mp3",
+          "title": "Neon Afterimage",
+          "titleOriginal": "ネオン・Afterimage",
+          "sourcePage": "https://nihonichi-bgm.com/songs/neon-afterimage_1c04a1fc?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/electronic/neon-afterimage_1c04a1fc.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 184.27,
+          "bpm": 127.49,
+          "tags": "synthwave, retro electronic, electronic",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 4422678,
+          "sha256": "c8b5496422608b0e21e36243460d6f91c8e2beb660ad99a00d691f7b93fcbe0d"
+        }
+      ]
+    },
+    "boss": {
+      "label": "Boss / Major Event",
+      "fadeSeconds": 1.6,
+      "tracks": [
+        {
+          "file": "boss/scarlet-dominion.mp3",
+          "title": "Scarlet Dominion",
+          "titleOriginal": "ボス戦 Scarlet Dominion",
+          "sourcePage": "https://nihonichi-bgm.com/songs/scarlet-dominion_27ba7b9b?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/battle-bgm/scarlet-dominion_27ba7b9b.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 180.07,
+          "bpm": 148,
+          "tags": "hybrid orchestral, electronic, cinematic (video game boss battle)",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 4210302,
+          "sha256": "8dc75489f71e7f7aab2e94cd8af8e48a5d3eeca41cfeb8e2217afa00c8503f56"
+        },
+        {
+          "file": "boss/voidbreaker.mp3",
+          "title": "Voidbreaker",
+          "titleOriginal": "ボス戦 Voidbreaker",
+          "sourcePage": "https://nihonichi-bgm.com/songs/voidbreaker_a72fd50f?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/battle-bgm/voidbreaker_a72fd50f.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 127.08,
+          "bpm": 150,
+          "tags": "hybrid orchestral, industrial electronic, boss battle",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 2943150,
+          "sha256": "f566c9642879cde440f8d00eb286d577795c335685768c234ea7d5b7f2b53be8"
+        },
+        {
+          "file": "boss/ashfall-tyrant.mp3",
+          "title": "Ashfall Tyrant",
+          "titleOriginal": "ボス戦 Ashfall Tyrant",
+          "sourcePage": "https://nihonichi-bgm.com/songs/ashfall-tyrant_cfbf40e0?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/battle-bgm/ashfall-tyrant_cfbf40e0.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 158.66,
+          "bpm": 152,
+          "tags": "hybrid orchestral, electronic, boss battle",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3661974,
+          "sha256": "114f60128a2381415c3ee09a24c0a07123add2e363ef2f7a65cdddd80227516d"
+        }
+      ]
+    },
+    "ending": {
+      "label": "Ending / Credits",
+      "fadeSeconds": 4,
+      "tracks": [
+        {
+          "file": "ending/first-light-promise.mp3",
+          "title": "First Light Promise",
+          "titleOriginal": "最初の・光・Promise",
+          "sourcePage": "https://nihonichi-bgm.com/songs/first-light-promise_56c0499d?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/ambient/first-light-promise_56c0499d.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 119.28,
+          "bpm": 75.69,
+          "tags": "piano instrumental, ambient, minimalist",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 2862870,
+          "sha256": "17e574e54ceb594b42ea99b7bd244369fe73f06d3f5fb5417fd505f1441fcf17"
+        },
+        {
+          "file": "ending/last-goodbye.mp3",
+          "title": "Last Goodbye",
+          "titleOriginal": "最後の・Goodbye",
+          "sourcePage": "https://nihonichi-bgm.com/songs/last-goodbye_96aacde8?lang=en",
+          "downloadUrl": "https://cdn.nihonichi-bgm.com/audio/cinematic/last-goodbye_96aacde8.mp3",
+          "artist": "Nihonichi Free BGM (AI-generated)",
+          "license": "Nihonichi Free BGM Commercial Use License",
+          "licenseUrl": "https://nihonichi-bgm.com/en/commercial-music-license/",
+          "durationSeconds": 154.94,
+          "bpm": 67,
+          "tags": "cinematic score, emotional piano, orchestral (lush strings)",
+          "instrumental": true,
+          "downloadedAt": "2026-11-01",
+          "bytes": 3718806,
+          "sha256": "65214289a62aa8cd228159968c767ba9c55b8d1bfd3bba262f86e070577c812e"
+        }
+      ]
+    }
+  }
+}
